@@ -100,12 +100,12 @@ batch batch-bf0f825b4eb270c13682: already existed (idempotent no-op)
 │   └── schema_snapshot.json       # 合成表结构、行数与索引
 ├── scripts/gen_fixtures.py        # 确定性重建合成 fixtures
 ├── src/slowquery_autopsy/
-│   ├── cli.py                     # run / serve / diff / validate
+│   ├── cli.py                     # run / serve / diff / trace / validate
 │   ├── config.py                  # 配置加载与校验
 │   ├── pipeline.py                # 批次编排、输入哈希、持久化
 │   ├── models.py                  # 数据模型与严重级别排序
 │   ├── ingest/                    # 日志、计划、表结构解析
-│   ├── analysis/                  # 归一化、指纹、成本、规则、diff
+│   ├── analysis/                  # 归一化、指纹、成本、规则、diff、跨批次追踪
 │   ├── store/                     # SQLite DDL 与台账读写
 │   ├── report/                    # Markdown / JSON / HTML 报告
 │   ├── server/                    # 仅回环的只读 HTTP 服务
@@ -280,6 +280,8 @@ LIMIT 20;
 | `unparsed_lines` | 文件、行号、原文、原因 |
 | `baselines` | 命名基线（Python `Ledger` API） |
 | `comparisons` | diff 结果与时间 |
+| `fingerprint_sources` | 每个批次中每个指纹的查询次数与来源文件（跨批次追踪的覆盖依据） |
+| `traces` | `trace` 结果、批次序列与时间 |
 
 `batch_id = stable_id("batch", config_hash, input_hash, length=20)`。`config_hash` 包含流水线配置及两份规则文件的哈希；`input_hash` 使用相对展示路径、格式和文件字节，不含绝对路径或 mtime，因此同一目录布局复制到其他位置仍得到相同批次。相同配置 + 相同输入重复运行不会产生新批次；输入或规则变化才会形成新批次。
 
@@ -328,6 +330,43 @@ PYTHONPATH=src python -m slowquery_autopsy diff \
 
 把 `diff --fail-on-new-high`（或 `risk.diff_fail_on_new_high: true`）放进 CI 即可阻止“新出现的高危模式”在无人审阅时合入。比较是**集合差异**，不是性能基准；同一个问题的证据值变化会产生新的 finding ID，这是有意的可追溯行为。
 
+### 11.1 跨批次指纹追踪 `trace`
+
+`diff` 是两批集合差异。`trace` 针对台账中的若干历史批次，串出某个指纹在每一批的查询次数、P95 以及该指纹上 high/critical 发现的出现情况：
+
+```bash
+# 最近两个批次（按台账时间正序）
+PYTHONPATH=src python -m slowquery_autopsy trace --config configs/pipeline.yaml
+
+# 指定批次，顺序即输出顺序
+PYTHONPATH=src python -m slowquery_autopsy trace --config configs/pipeline.yaml \
+  --batch batch-<旧> --batch batch-<新> --output reports/trace.json
+
+# 只看最近 N 批
+PYTHONPATH=src python -m slowquery_autopsy trace --config configs/pipeline.yaml --last 5
+```
+
+输出 JSON 的顶层键为 `trace_type`、`schema_version`、`status_basis`、`status_legend`、`batches`、`fingerprints`、`counts`。每个指纹包含：
+
+- `batches[]`：逐批的 `state`、`query_count`、`p95_duration_ms`、high/critical 发现数量、`high_finding_keys`、`high_finding_ids`、`missing_sources`、`coverage_known`。
+- `first_seen_batch` / `last_seen_batch`：该指纹首次/最近被实际观测到的批次。
+- `status`：`continuous`（连续出现）、`reappeared`（间断后重现）、`new`（首次出现后一直存在）、`disappeared`（最近一次覆盖它的批次中消失）、`single_batch`（只在一个覆盖批次中出现）。
+- `high_findings.keys[]`：按 `rule_id + plan_file + node_path` 归并的发现，附各批次的 `finding_id` 与 `finding_ids_changed`。
+
+**为什么不按 `finding_id` 比较**：`finding_id` 由 `rule_id + 目标 + evidence` 决定，`queries` 或 P95 变化就会产生新 ID。`trace` 的指纹身份就是 `fingerprint`（簇 ID），发现身份是规则与目标，因而同一持久问题在 evidence 变化时仍被串起来，同时保留每批的原始 `finding_id` 做溯源。
+
+**逐批状态**：
+
+| 状态 | 含义 |
+|---|---|
+| `observed` | 该批次有该指纹的簇。 |
+| `absent` | 该批次采集了该指纹的全部已知来源文件（`log_files` 有记录），但没有产生该指纹。这才是真正消失。 |
+| `not_collected` | 该批次没有采集全该指纹的已知来源，或台账无法证明其覆盖（旧版台账未回填）。这不能解读为“消失”，`missing_sources` 给出缺失来源。 |
+
+持续性状态只使用 `observed`/`absent` 批次，因此 `not_collected` 的空洞不会伪造出一次消失。若某批只采到了该指纹的部分来源，也会保守地记为 `not_collected`。
+
+`trace` 会以批次序列生成 `trace_id` 并写入 `traces` 表（幂等：同一批次序列与内容重复执行会覆盖同一条记录）；trace 文档本身不含运行时间，对同一批次集合可重复生成相同输出。若台账由 schema v1 升级而来，`trace` 会先调用 `Ledger.backfill_fingerprint_sources()` 从 `slow_queries` 回填 `fingerprint_sources`，使历史批次也能区分 `absent` 与 `not_collected`。
+
 ## 12. 校验、限制与维护
 
 ### 12.1 本地校验
@@ -357,6 +396,7 @@ inputs=4 queries=20 clusters=4 plans=5 findings=14 unparsed=3
 - 日志中的无时区时间戳按 UTC 解释；若源库使用本地时区，请先确认台账展示时间是否满足审计要求。
 - `SET`/`SHOW`/`USE` 默认作为元数据排除，不会出现在簇和成本统计中；如业务确实需要分析，应调整 `excluded_statement_prefixes`。
 - diff 是批次集合差异，不提供统计显著性、时序趋势或容量预测。
+- `trace` 的持续性只基于台账中实际存在、且可证明覆盖的批次；批次不连续时，`not_collected` 只表示“该批未采到该指纹的已知来源”，不代表线上是否出现。
 - 本地 HTTP 服务没有认证，虽然强制回环绑定，仍不应通过端口转发、反向代理或隧道暴露给他人。
 - 报告会保留原始 SQL、用户名、客户端和数据库名，应按内部敏感数据管理；仓库内 fixtures 全部为合成占位值。
 

@@ -10,6 +10,7 @@ from typing import Sequence
 
 from . import PROJECT_SLUG, __version__
 from .analysis.diff import diff_batches
+from .analysis.trace import trace_batches_from_ledger
 from .config import AppConfig, ConfigError, load_config
 from .pipeline import build_result, run, validate_configuration
 from .report import write_reports
@@ -130,6 +131,63 @@ def cmd_diff(args: argparse.Namespace) -> int:
     return 1 if should_fail and counts["new_high_findings"] > 0 else 0
 
 
+def cmd_trace(args: argparse.Namespace) -> int:
+    try:
+        config = _load(args.config)
+        if not config.ledger_path.is_file():
+            raise LedgerError(f"ledger not found: {config.display(config.ledger_path)}")
+        with Ledger(config.ledger_path) as ledger:
+            ledger.init_schema()
+            ledger.backfill_fingerprint_sources()
+            batch_ids = _resolve_trace_batches(ledger, args.batch, args.last)
+            trace = trace_batches_from_ledger(ledger, batch_ids)
+            ledger.record_trace(stable_id("trc", batch_ids), batch_ids,
+                                utc_now_iso(), trace)
+    except (ConfigError, OSError, ValueError, LedgerError, KeyError) as exc:
+        message = f"unknown batch: {exc}" if isinstance(exc, KeyError) else str(exc)
+        _error(message)
+        return 2
+    text = json.dumps(trace, ensure_ascii=False, sort_keys=True, indent=2) + "\n"
+    if args.output:
+        Path(args.output).write_text(text, encoding="utf-8", newline="\n")
+    print(text, end="")
+    counts = trace["counts"]
+    print(
+        f"trace: batches={counts['batches']} fingerprints={counts['fingerprints']} "
+        f"status={counts['by_status']} absent={counts['absent']} "
+        f"not_collected={counts['not_collected']}",
+        file=sys.stderr,
+    )
+    return 0
+
+
+def _resolve_trace_batches(ledger: Ledger, requested: list[str] | None,
+                           last: int | None) -> list[str]:
+    """Pick and order the batches a trace covers.
+
+    Chronology is ``(created_at, batch_id)``, matching
+    :meth:`Ledger.list_batches_chronological`.  An explicit ``--batch`` list is
+    kept in the order the operator gave it, so ``oldest``/``latest`` in the
+    output follow the supplied sequence; without ``--batch`` the most recent
+    ``--last`` batches are selected and returned oldest first.
+    """
+    if requested:
+        ids = list(dict.fromkeys(requested))
+    else:
+        ordered = [batch["batch_id"] for batch in ledger.list_batches_chronological()]
+        if last is not None:
+            if last < 1:
+                raise LedgerError("--last must be at least 1")
+            ordered = ordered[-last:]
+        ids = ordered
+    missing = [batch_id for batch_id in ids if not ledger.get_batch(batch_id)]
+    if missing:
+        raise LedgerError(f"unknown batch: {', '.join(missing)}")
+    if not ids:
+        raise LedgerError("ledger contains no batches")
+    return ids
+
+
 def cmd_validate(args: argparse.Namespace) -> int:
     try:
         config = _load(args.config)
@@ -181,6 +239,22 @@ def build_parser() -> argparse.ArgumentParser:
     diff_parser.add_argument("--fail-on-new-high", action="store_true",
                              help="return exit code 1 when new high/critical findings appear")
     diff_parser.set_defaults(func=cmd_diff)
+
+    trace_parser = sub.add_parser(
+        "trace", help="trace fingerprint persistence across several ledger batches"
+    )
+    trace_parser.add_argument("--config", default=default_config)
+    trace_parser.add_argument(
+        "--batch", action="append", metavar="BATCH_ID",
+        help="batch to include; repeat the flag; order is kept as given "
+             "(default: the most recent batches, oldest first)",
+    )
+    trace_parser.add_argument(
+        "--last", type=int, metavar="N",
+        help="trace the most recent N batches (ignored with --batch)",
+    )
+    trace_parser.add_argument("--output", help="optional path for the JSON trace")
+    trace_parser.set_defaults(func=cmd_trace)
 
     validate_parser = sub.add_parser("validate", help="validate config, fixtures and plans")
     validate_parser.add_argument("--config", default=default_config)

@@ -14,7 +14,8 @@ def _cell(value: Any) -> str:
 
 
 def _code(value: str) -> str:
-    return f"`{value.replace('`', '\\`')}`" if value else "—"
+    escaped = value.replace("`", "\\`")
+    return f"`{escaped}`" if value else "—"
 
 
 def _severity_counts(result: AnalysisResult) -> str:

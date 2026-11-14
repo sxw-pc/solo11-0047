@@ -1,6 +1,6 @@
 """SQLite ledger schema DDL."""
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS schema_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS batches (
@@ -70,5 +70,16 @@ CREATE TABLE IF NOT EXISTS baselines (
 CREATE TABLE IF NOT EXISTS comparisons (
   comparison_id TEXT PRIMARY KEY, base_batch_id TEXT NOT NULL,
   head_batch_id TEXT NOT NULL, created_at TEXT NOT NULL, summary_json TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS fingerprint_sources (
+  batch_id TEXT NOT NULL, fingerprint TEXT NOT NULL, source_file TEXT NOT NULL,
+  query_count INTEGER NOT NULL,
+  PRIMARY KEY (batch_id, fingerprint, source_file),
+  FOREIGN KEY (batch_id) REFERENCES batches(batch_id)
+);
+CREATE INDEX IF NOT EXISTS idx_sources_fingerprint ON fingerprint_sources(fingerprint);
+CREATE TABLE IF NOT EXISTS traces (
+  trace_id TEXT PRIMARY KEY, batch_ids_json TEXT NOT NULL,
+  created_at TEXT NOT NULL, summary_json TEXT NOT NULL
 );
 """

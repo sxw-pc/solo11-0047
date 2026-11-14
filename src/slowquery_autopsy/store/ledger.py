@@ -9,16 +9,30 @@ from typing import Any
 
 from ..models import SEVERITY_ORDER, AnalysisResult
 from ..util.hashing import canonical_json
-from .schema import SCHEMA_SQL
+from . import trace_store
+from .trace_store import TraceStoreMixin
+from .schema import SCHEMA_SQL, SCHEMA_VERSION
 
-SCHEMA_VERSION = 1
+__all__ = ["Ledger", "LedgerError", "SCHEMA_VERSION", "open_readonly"]
+
+
+def _batch_row(row: sqlite3.Row) -> dict[str, Any]:
+    item = dict(row)
+    item["summary"] = json.loads(item.pop("summary_json"))
+    return item
+
+
+def _json_row(row: sqlite3.Row, source_key: str, target_key: str) -> dict[str, Any]:
+    item = dict(row)
+    item[target_key] = json.loads(item.pop(source_key))
+    return item
 
 
 class LedgerError(RuntimeError):
     """Raised on invalid ledger usage."""
 
 
-class Ledger:
+class Ledger(TraceStoreMixin):
     def __init__(self, path: Path | str, readonly: bool = False):
         self.path = Path(path)
         self.readonly = readonly
@@ -122,6 +136,7 @@ class Ledger:
                         "INSERT OR IGNORE INTO unparsed_lines VALUES (?, ?, ?, ?, ?)",
                         (result.batch_id, item.file, item.line_no, item.text, item.reason),
                     )
+                trace_store.insert_sources(self.conn, result)
         except sqlite3.IntegrityError:
             self.conn.rollback()
             return False
@@ -130,6 +145,13 @@ class Ledger:
     def list_batches(self) -> list[dict[str, Any]]:
         rows = self.conn.execute(
             "SELECT * FROM batches ORDER BY created_at DESC, batch_id ASC"
+        ).fetchall()
+        return [_batch_row(row) for row in rows]
+
+    def list_batches_chronological(self) -> list[dict[str, Any]]:
+        """Batches oldest first; this is the trace ordering."""
+        rows = self.conn.execute(
+            "SELECT * FROM batches ORDER BY created_at ASC, batch_id ASC"
         ).fetchall()
         return [_batch_row(row) for row in rows]
 
@@ -220,6 +242,9 @@ class Ledger:
         ).fetchall()
         return [dict(row) for row in rows]
 
+    # list_log_files / list_fingerprint_sources / has_fingerprint_sources /
+    # record_trace / list_traces / backfill_fingerprint_sources: TraceStoreMixin.
+
     def set_baseline(self, name: str, batch_id: str, created_at: str) -> None:
         self._assert_writable()
         with self.conn:
@@ -260,18 +285,6 @@ class Ledger:
             "SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name"
         ).fetchall()
         return [row["name"] for row in rows]
-
-
-def _batch_row(row: sqlite3.Row) -> dict[str, Any]:
-    item = dict(row)
-    item["summary"] = json.loads(item.pop("summary_json"))
-    return item
-
-
-def _json_row(row: sqlite3.Row, source_key: str, target_key: str) -> dict[str, Any]:
-    item = dict(row)
-    item[target_key] = json.loads(item.pop(source_key))
-    return item
 
 
 def open_readonly(path: Path | str) -> Ledger:

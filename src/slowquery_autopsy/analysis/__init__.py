@@ -1,1 +1,1 @@
-"""Normalization, clustering, attribution and audit rules."""
+"""Normalization, clustering, attribution, audit rules and batch comparison."""
