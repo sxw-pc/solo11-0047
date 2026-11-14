@@ -9,9 +9,7 @@ from typing import Any
 
 from ..models import SEVERITY_ORDER, AnalysisResult
 from ..util.hashing import canonical_json
-from .schema import SCHEMA_SQL
-
-SCHEMA_VERSION = 1
+from .schema import SCHEMA_SQL, SCHEMA_VERSION, migrate_slow_queries
 
 
 class LedgerError(RuntimeError):
@@ -50,6 +48,7 @@ class Ledger:
     def init_schema(self) -> None:
         self._assert_writable()
         self.conn.executescript(SCHEMA_SQL)
+        migrate_slow_queries(self.conn)
         self.conn.execute(
             "INSERT OR REPLACE INTO schema_meta(key, value) VALUES ('version', ?)",
             (str(SCHEMA_VERSION),),
@@ -79,12 +78,14 @@ class Ledger:
                     )
                 for query in result.queries:
                     self.conn.execute(
-                        "INSERT INTO slow_queries VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                        "INSERT INTO slow_queries VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                         (result.batch_id, query.query_id, query.source_file, query.line_no,
                          query.timestamp, query.duration_ms, query.lock_time_ms, query.rows_sent,
                          query.rows_examined, query.user, query.client, query.database, query.sql,
                          query.normalized_sql, query.fingerprint, query.cluster_id, query.log_format,
-                         int(query.excluded), query.exclusion_reason, canonical_json(query.cost)),
+                         int(query.excluded), query.exclusion_reason, canonical_json(query.cost),
+                         query.event_id, query.duplicate_of,
+                         canonical_json(query.redundant_sources)),
                     )
                 for cluster in result.clusters:
                     self.conn.execute(
@@ -167,6 +168,24 @@ class Ledger:
             args.append(cluster_id)
         sql += " ORDER BY source_file ASC, line_no ASC, query_id ASC"
         return [_json_row(row, "cost_json", "cost") for row in self.conn.execute(sql, args)]
+
+    def list_duplicate_sources(self, batch_id: str) -> list[dict[str, Any]]:
+        """Every folded row with its representative, for audit traceability."""
+        items: list[dict[str, Any]] = []
+        for row in self.conn.execute(
+            "SELECT query_id, redundant_sources_json FROM slow_queries "
+            "WHERE batch_id = ? AND redundant_sources_json != '[]' "
+            "ORDER BY source_file ASC, line_no ASC, query_id ASC", (batch_id,)
+        ):
+            for source in json.loads(row["redundant_sources_json"]):
+                items.append({
+                    "representative_query_id": row["query_id"],
+                    "source_file": source.get("source_file", ""),
+                    "line_no": source.get("line_no", 0),
+                    "query_id": source.get("query_id", ""),
+                    "log_format": source.get("log_format", ""),
+                })
+        return items
 
     def get_query(self, batch_id: str, query_id: str) -> dict[str, Any] | None:
         row = self.conn.execute(

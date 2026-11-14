@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import re
-from pathlib import Path
 from typing import Any
 
 from .analysis.cost import attach_query_costs, evaluate_cost
+from .analysis.dedup import DedupResult, DedupRules, deduplicate_queries
 from .analysis.fingerprint import build_clusters, fingerprint_id
 from .analysis.normalize import normalize_sql
 from .analysis.plan_audit import audit_plans
@@ -40,6 +40,12 @@ def attach_fingerprints(queries: list[SlowQuery], config: AppConfig) -> None:
         query.query_id = stable_id(
             "q", query.source_file, query.line_no, query.fingerprint
         )
+
+
+def attach_event_identity(queries: list[SlowQuery], config: AppConfig) -> DedupResult:
+    """Fold rows describing the same physical execution across source files."""
+    rules = DedupRules.from_mapping(config.dedup_rules)
+    return deduplicate_queries(queries, rules)
 
 
 def _input_hash(config: AppConfig) -> str:
@@ -86,6 +92,7 @@ def _unassociated_payload(plans: list[Any]) -> list[dict[str, Any]]:
 def build_result(config: AppConfig, created_at: str | None = None) -> AnalysisResult:
     parsed = parse_inputs(config)
     attach_fingerprints(parsed.queries, config)
+    dedup = attach_event_identity(parsed.queries, config)
     attach_query_costs(parsed.queries)
     clusters = build_clusters(parsed.queries)
     schema = load_schema(config.schema_path)
@@ -103,7 +110,9 @@ def build_result(config: AppConfig, created_at: str | None = None) -> AnalysisRe
     input_hash = _input_hash(config)
     config_hash = config.config_fingerprint()
     batch_id = stable_id("batch", config_hash, input_hash, length=20)
-    included = [query for query in parsed.queries if not query.excluded]
+    included = [
+        query for query in parsed.queries if not query.excluded and not query.duplicate_of
+    ]
     severity_counts = {level: 0 for level in ("critical", "high", "medium", "low", "info")}
     for finding in findings:
         severity_counts[finding.severity] = severity_counts.get(finding.severity, 0) + 1
@@ -115,6 +124,8 @@ def build_result(config: AppConfig, created_at: str | None = None) -> AnalysisRe
             "queries": len(parsed.queries),
             "analyzed_queries": len(included),
             "excluded_queries": len(excluded),
+            "duplicate_queries": dedup.duplicate_row_count,
+            "dedup_groups": len(dedup.folded_groups),
             "clusters": len(clusters),
             "plans": len(plans),
             "plan_nodes": sum(plan.node_count for plan in plans),
@@ -132,6 +143,7 @@ def build_result(config: AppConfig, created_at: str | None = None) -> AnalysisRe
         "excluded_prefixes": config.excluded_prefixes,
         "excluded_statements": excluded,
         "unassociated_plans": unassociated,
+        "deduplication": dedup.as_dict(),
         "normalization_rules": [
             rule.get("id") for rule in config.fingerprint_rules.get("rules", [])
             if rule.get("enabled", True)

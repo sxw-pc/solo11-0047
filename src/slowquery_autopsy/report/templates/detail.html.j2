@@ -25,9 +25,24 @@
         <tr><th>用户</th><td>{{ query.user }}</td><th>客户端</th><td>{{ query.client }}</td></tr>
         <tr><th>数据库</th><td>{{ query.database }}</td><th>指纹</th><td><code>{{ query.fingerprint }}</code></td></tr>
         <tr><th>排除</th><td>{{ "是" if query.excluded else "否" }}</td><th>排除原因</th><td>{{ query.exclusion_reason or "—" }}</td></tr>
+        <tr><th>事件 ID</th><td><code>{{ query.event_id or "—" }}</code></td><th>重复于</th><td>{{ query.duplicate_of or "—" }}</td></tr>
       </tbody>
     </table>
   </section>
+  {% if query.redundant_sources %}
+  <section>
+    <h2>冗余来源</h2>
+    <p class="muted">以下日志行描述同一次物理执行，已折叠，不单独计入簇与发现。</p>
+    <table>
+      <thead><tr><th>文件</th><th>行号</th><th>格式</th><th>query_id</th></tr></thead>
+      <tbody>
+      {% for item in query.redundant_sources %}
+        <tr><td>{{ item.source_file }}</td><td>{{ item.line_no }}</td><td>{{ item.log_format }}</td><td><code>{{ item.query_id }}</code></td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </section>
+  {% endif %}
   <section>
     <h2>SQL</h2>
     <pre>{{ query.sql }}</pre>

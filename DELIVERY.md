@@ -3,16 +3,17 @@
 交付日期：2026-11-14  
 项目：`slowquery-autopsy` / 慢查解剖台  
 Python 要求：3.10+  
-状态：**实现完成，49 项测试全部通过，示例报告已生成**
+状态：**实现完成（新增跨格式事件去重），65 项测试全部通过，示例报告已生成**
 
 ## 1. 交付内容
 
 - 完整可运行源码，采用 `src/` 布局。
 - 合成 fixtures：4 个日志文件、5 个执行计划、1 个表结构快照。
 - 三份声明式配置：流水线、归一化规则、计划审计规则。
-- 49 项 pytest 测试：单元测试 + 端到端流水线 + 本地 HTTP 冒烟测试。
+- 65 项 pytest 测试：单元测试 + 端到端流水线 + 本地 HTTP 冒烟测试。
+- 跨格式慢查事件去重：`analysis/dedup.py`，按时间归一、duration/lock/rows 容差、归一化 SQL 与 tokens 联合判定，冗余来源挂回代表行。
 - `Makefile`：`test`、`run`、`serve`、`diff`、`validate`、`fixtures`。
-- 示例输出：`reports/batch-bf0f825b4eb270c13682/`，含 Markdown、JSON 与 25 个静态 HTML 页面。
+- 示例输出：`reports/batch-e663019755f86d0a702c/`，含 Markdown、JSON 与 25 个静态 HTML 页面。
 - 文档：本文件、[README.md](README.md)、[COMPLIANCE.md](COMPLIANCE.md)。
 
 SQLite 台账 `data/ledger.sqlite3` 是运行时生成物，不随交付提交；首次 `make run` 会自动创建，`make serve` 需要先执行 `run`。示例报告保留在 `reports/` 供直接查看。
@@ -52,7 +53,7 @@ template dir present: cluster.html.j2, detail.html.j2, index.html.j2
 ```text
 $ python -m pytest
 .................................................                        [100%]
-49 passed in 4.14s
+65 passed in 2.33s
 ```
 
 说明：全局安装的 `pytest-asyncio` 插件会打印一条未设置 fixture loop scope 的弃用提示。项目自身不依赖 `pytest-asyncio`，该提示不影响测试结果。测试过程中本地服务使用回环地址，不访问外部网络。
@@ -61,20 +62,20 @@ $ python -m pytest
 
 ```text
 $ PYTHONPATH=src python -m slowquery_autopsy run --config configs/pipeline.yaml
-batch batch-bf0f825b4eb270c13682: inserted
-queries=20 clusters=4 plans=5 findings=14 high=9 unparsed=3
-markdown: reports/batch-bf0f825b4eb270c13682/report.md
-json: reports/batch-bf0f825b4eb270c13682/report.json
-html_index: reports/batch-bf0f825b4eb270c13682/html/index.html
+batch batch-e663019755f86d0a702c: inserted
+queries=22 analyzed=18 duplicates=2 clusters=4 plans=5 findings=14 high=9 unparsed=3
+markdown: reports/batch-e663019755f86d0a702c/report.md
+json: reports/batch-e663019755f86d0a702c/report.json
+html_index: reports/batch-e663019755f86d0a702c/html/index.html
 
 $ PYTHONPATH=src python -m slowquery_autopsy run --config configs/pipeline.yaml
-batch batch-bf0f825b4eb270c13682: already existed (idempotent no-op)
-queries=20 clusters=4 plans=5 findings=14 high=9 unparsed=3
+batch batch-e663019755f86d0a702c: already existed (idempotent no-op)
+queries=22 analyzed=18 duplicates=2 clusters=4 plans=5 findings=14 high=9 unparsed=3
 ...
 ```
 
 - 输入哈希与配置哈希完全相同时，`batch_id` 不变，台账不重复写入。
-- 将项目整体复制到另一绝对路径后，上述批次的 ID 仍为 `batch-bf0f825b4eb270c13682`，说明批次 ID 不依赖绝对路径。
+- 将项目整体复制到另一绝对路径后，上述批次的 ID 仍为 `batch-e663019755f86d0a702c`，说明批次 ID 不依赖绝对路径。
 - 连续两次生成全部 27 个报告文件，逐文件 SHA-256 校验一致：“27 files unchanged”。
 
 ### 3.3 配置与输入校验
@@ -82,7 +83,7 @@ queries=20 clusters=4 plans=5 findings=14 high=9 unparsed=3
 ```text
 $ PYTHONPATH=src python -m slowquery_autopsy validate --config configs/pipeline.yaml
 VALID .../configs/pipeline.yaml
-inputs=4 queries=20 clusters=4 plans=5 findings=14 unparsed=3
+inputs=5 queries=22 analyzed=18 duplicates=2 clusters=4 plans=5 findings=14 unparsed=3
 note: unparsed fixtures/logs/malformed_lines.log:1: line outside a slow-log block
 note: unparsed fixtures/logs/malformed_lines.log:9: missing # Query_time metadata
 note: unparsed fixtures/logs/pg_log_01.log:5: missing CSV field 'statement' at index 8
@@ -104,13 +105,13 @@ exit=2
 
 ```text
 == run 1 ==
-batch batch-bf0f825b4eb270c13682: inserted
-queries=20 clusters=4 plans=5 findings=14 high=9 unparsed=3
+batch batch-e663019755f86d0a702c: inserted
+queries=22 analyzed=18 duplicates=2 clusters=4 plans=5 findings=14 high=9 unparsed=3
 exit 0
 
 == run 2 ==
 batch batch-85ecafebc34cd39f84cd: inserted
-queries=21 clusters=5 plans=5 findings=16 high=10 unparsed=3
+queries=23 analyzed=19 duplicates=2 clusters=5 plans=5 findings=16 high=10 unparsed=3
 exit 0
 
 == diff ==
@@ -172,7 +173,7 @@ compile_all_ok
 | 生成脚本 `scripts/` | 180 |
 | **合计** | **4487** |
 
-单文件最大为 `src/slowquery_autopsy/models.py` 的 293 行，全部文件均 ≤300 行。
+单文件最大为 `src/slowquery_autopsy/models.py` 的 299 行，全部文件均 ≤300 行。
 
 ### 4.1 应用模块
 
@@ -183,30 +184,32 @@ compile_all_ok
 | `analysis/__init__.py` | 1 | 包标记 |
 | `analysis/cost.py` | 97 | 成本向量、阈值规则 |
 | `analysis/diff.py` | 65 | 批次集合差异 |
-| `analysis/fingerprint.py` | 85 | 指纹、nearest-rank、聚类 |
+| `analysis/dedup.py` | 211 | 跨格式事件分组、代表行与冗余来源 |
+| `analysis/dedup_rules.py` | 162 | 容差规则、时间戳归一与事件等价判定 |
+| `analysis/fingerprint.py` | 95 | 指纹、nearest-rank、事件级聚类 |
 | `analysis/normalize.py` | 154 | 声明式归一化与分词 |
 | `analysis/plan_audit.py` | 206 | 五类计划审计检查 |
 | `analysis/risk_rules.py` | 91 | 统一 finding、覆盖与规则目录 |
 | `cli.py` | 198 | run/serve/diff/validate |
-| `config.py` | 273 | YAML 加载、路径解析与校验 |
+| `config.py` | 285 | YAML 加载、路径解析与校验（含 dedup 段） |
 | `ingest/__init__.py` | 1 | 包标记 |
 | `ingest/log_parser.py` | 256 | MySQL slow log / PostgreSQL CSV |
 | `ingest/plan_parser.py` | 226 | JSON 与文本计划 |
 | `ingest/schema_loader.py` | 100 | 表结构快照读取 |
-| `models.py` | 293 | 数据模型、严重级别与排序 |
-| `pipeline.py` | 212 | 编排、哈希、持久化、校验 |
+| `models.py` | 299 | 数据模型、严重级别与排序 |
+| `pipeline.py` | 221 | 编排、去重接入、哈希、持久化、校验 |
 | `report/__init__.py` | 47 | 报告入口 |
 | `report/html_report.py` | 117 | 静态 HTML 渲染 |
-| `report/json_report.py` | 55 | JSON 报告 |
-| `report/markdown_report.py` | 200 | Markdown 报告 |
+| `report/json_report.py` | 70 | JSON 报告（含 duplicate_sources） |
+| `report/markdown_report.py` | 240 | Markdown 报告（含冗余来源小节） |
 | `server/__init__.py` | 1 | 包标记 |
 | `server/app.py` | 268 | 回环只读 HTTP 服务 |
 | `store/__init__.py` | 1 | 包标记 |
-| `store/ledger.py` | 278 | SQLite 写入/只读访问 |
-| `store/schema.py` | 74 | 台账 DDL |
+| `store/ledger.py` | 297 | SQLite 写入/只读访问 |
+| `store/schema.py` | 96 | 台账 DDL（v2）与迁移 |
 | `util/__init__.py` | 1 | 包标记 |
 | `util/hashing.py` | 58 | SHA-256、稳定 ID、文件哈希 |
-| `util/timefmt.py` | 48 | UTC 时间格式 |
+| `util/timefmt.py` | 78 | UTC 时间格式与时间距离 |
 
 ### 4.2 测试模块
 
@@ -214,17 +217,19 @@ compile_all_ok
 |---|---:|---:|
 | `tests/conftest.py` | — | 39 |
 | `tests/test_cost.py` | 4 | 85 |
+| `tests/test_dedup.py` | 11 | 205 |
+| `tests/test_dedup_pipeline.py` | 4 | 174 |
 | `tests/test_fingerprint.py` | 4 | 70 |
-| `tests/test_ledger.py` | 5 | 69 |
+| `tests/test_ledger.py` | 6 | 87 |
 | `tests/test_log_parser.py` | 5 | 91 |
 | `tests/test_normalize.py` | 5 | 71 |
-| `tests/test_pipeline_e2e.py` | 3 | 87 |
+| `tests/test_pipeline_e2e.py` | 3 | 88 |
 | `tests/test_plan_audit.py` | 6 | 100 |
 | `tests/test_plan_parser.py` | 5 | 69 |
-| `tests/test_reports.py` | 5 | 82 |
+| `tests/test_reports.py` | 5 | 84 |
 | `tests/test_risk_rules.py` | 5 | 67 |
 | `tests/test_server_smoke.py` | 2 | 67 |
-| **合计** | **49** | **897** |
+| **合计** | **65** | **1258** |
 
 覆盖点：
 
@@ -237,17 +242,21 @@ compile_all_ok
 - SQLite 表结构、幂等批次、只读拒绝、baseline/comparison。
 - Markdown/JSON/HTML 内容与确定性、本地资产、无外部链接。
 - 端到端 run → append 新日志 → run → diff → validate。
+- 跨格式事件去重：时间戳形态归一、四维容差、SQL/tokens 联合判定、代表行与冗余来源、簇与 findings 计数一致性。
+- 失败路径：默认容差不会合并 1 秒 / 10% 差异的不同执行；放宽容差后确实误合并，且 `test_*` 明确记录该代价。
+- 台账 v1 → v2 迁移（新增 event_id / duplicate_of / redundant_sources_json）。
 - 回环绑定、CSP、路由、404、405、HEAD、POST 拒绝。
 
 ## 5. 示例报告
 
-批次 `batch-bf0f825b4eb270c13682` 的输入统计：
+批次 `batch-e663019755f86d0a702c` 的输入统计：
 
 | 指标 | 数量 |
 |---|---:|
-| 输入文件 | 4 |
-| 解析慢查 | 20 |
-| 参与聚类 | 18 |
+| 输入文件 | 5 |
+| 解析慢查 | 22 |
+| 去重后事件（参与聚类） | 18 |
+| 跨格式折叠的冗余行 | 2 |
 | 排除语句（SET/SHOW） | 2 |
 | 指纹簇 | 4 |
 | 计划 / 计划节点 | 5 / 8 |
@@ -255,16 +264,16 @@ compile_all_ok
 | 未解析行 | 3 |
 | 未关联计划 | 1 |
 
-输出文件共 27 个：
+输出文件共 29 个：
 
 ```text
-reports/batch-bf0f825b4eb270c13682/
-├── report.md                  # 14,094 bytes
-├── report.json                # 51,677 bytes
+reports/batch-e663019755f86d0a702c/
+├── report.md                  # 14,813 bytes
+├── report.json                # 60,989 bytes
 └── html/
     ├── index.html
     ├── cluster-<fingerprint>.html   # 4 个
-    └── query-<query_id>.html        # 20 个
+    └── query-<query_id>.html        # 22 个
 ```
 
 严重级别分布：critical=0，high=9，medium=5，low=0，info=0。规则触发明细可在 `report.md` 的“规则触发表”中查看。
@@ -305,4 +314,5 @@ reports/batch-bf0f825b4eb270c13682/
 - [x] 仅回环、只读、GET/HEAD 本地服务。
 - [x] `run` / `serve` / `diff` / `validate` CLI 与 Makefile。
 - [x] README、COMPLIANCE、DELIVERY、合成 fixtures 与示例报告。
-- [x] 49 项测试通过，Python 总行数 4487，全部文件 ≤300 行。
+- [x] F9 跨格式事件去重：时间/耗时/锁等待/行数容差 + 归一化 SQL 与 tokens 联合判定；冗余来源保留文件与行号。
+- [x] 65 项测试通过，全部源文件 ≤300 行。

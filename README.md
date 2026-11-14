@@ -150,7 +150,23 @@ CSV 可用字段：`timestamp`、`user`、`database`、`duration_sec`、`lock_se
 | `excluded_statement_prefixes` | 否 | 不参与聚类的语句前缀，默认 `SET`、`SHOW`、`USE` |
 | `quantile` | 否 | 目前仅支持 `nearest_rank` |
 
-### 5.4 `cost.rules[]`
+### 5.4 `dedup`
+
+跨文件事件去重。缺省值已针对“同一慢查的多格式导出”收紧；除非明确知道数据源的时间/耗时精度，不要放大窗口。
+
+| 字段 | 必填 | 含义 |
+|---|---|---|
+| `enabled` | 否 | 默认 `true`；`false` 时不做任何折叠 |
+| `time_tolerance_seconds` | 否 | 时间戳窗口，默认 `1` |
+| `duration_tolerance_ms` | 否 | 耗时绝对容差，默认 `2` |
+| `duration_tolerance_ratio` | 否 | 耗时相对容差（相对较大值），默认 `0.002` |
+| `lock_tolerance_ms` | 否 | 锁等待绝对容差，默认 `1` |
+| `lock_tolerance_ratio` | 否 | 锁等待相对容差，默认 `0.05` |
+| `rows_tolerance` | 否 | 行数绝对容差，默认 `0` |
+| `rows_tolerance_ratio` | 否 | 行数相对容差，默认 `0.001` |
+| `cross_file_only` | 否 | 默认 `true`，只折叠跨文件的行；同一文件的相同记录仍按不同执行计 |
+
+### 5.5 `cost.rules[]`
 
 | 字段 | 必填 | 含义 |
 |---|---|---|
@@ -163,7 +179,7 @@ CSV 可用字段：`timestamp`、`user`、`database`、`duration_sec`、`lock_se
 | `severity` | 是 | `critical` / `high` / `medium` / `low` / `info` |
 | `enabled` | 否 | 默认 `true` |
 
-### 5.5 `plan`、`risk`、`reports`
+### 5.6 `plan`、`risk`、`reports`
 
 | 字段 | 必填 | 含义 |
 |---|---|---|
@@ -238,11 +254,14 @@ LIMIT 20;
 1. 读取 `fingerprint_rules.yaml` 中 `enabled: true` 的规则，按文件顺序应用：去注释、字符串/数字字面量占位、折叠 `IN` 列表、归一化 `LIMIT`、压缩空白与标点、关键词大写。`regex_sub` 可用于增加自定义规则，无需改 Python。
 2. 归一化后重新分词，得到有序结构 token 序列。
 3. `fingerprint = SHA-256(归一化文本 + \x1e + 空格连接的有序 token)[:16]`。
-4. 相同指纹的慢查进入同一簇；前缀命中 `SET`/`SHOW`/`USE` 的语句被排除，不进入簇，但保留在报告的排除清单中。
-5. 簇按 `-总耗时, 指纹` 排序，保证相同输入稳定。
-6. 分位数采用 nearest-rank：排序后取第 `ceil(q*n)` 个值，不做插值。
-7. 扫描放大倍数 = 簇内扫描行总数 / `max(返回行总数, 1)`；锁等待占比 = 簇内锁等待时间总和 / 总耗时。
-8. 每千次调用耗时 = 平均耗时 × 1000（毫秒）。
+4. **跨文件事件去重**：同一物理慢查可能同时出现在 MySQL slow log 和 PG CSV 导出中。两行只有同时满足下列全部条件才会被视为同一事件：归一化 SQL 文本相同、有序 token 序列相同、时间戳归一到同一 UTC 时刻且落在 `dedup.time_tolerance_seconds` 内、`duration_ms` / `lock_time_ms` / 两个行数都在绝对 + 相对容差内。默认还要求两行来自不同文件，且同一文件对同一事件最多贡献一行。判定为重复的行不再计入 `analyzed_queries` 与簇计数，其来源文件与行号挂在代表行的 `redundant_sources` 上。
+5. 相同指纹的去重后事件进入同一簇；前缀命中 `SET`/`SHOW`/`USE` 的语句被排除，不进入簇，但保留在报告的排除清单中。
+6. 簇按 `-总耗时, 指纹` 排序，保证相同输入稳定。
+7. 分位数采用 nearest-rank：排序后取第 `ceil(q*n)` 个值，不做插值。
+8. 扫描放大倍数 = 簇内扫描行总数 / `max(返回行总数, 1)`；锁等待占比 = 簇内锁等待时间总和 / 总耗时。
+9. 每千次调用耗时 = 平均耗时 × 1000（毫秒）。
+
+去重容差必须保持紧绷。窗口过宽会把不同的慢查错误合并，使 `cluster.query_count` 与 findings 里的 `query_count` 失去明细支撑；`tests/test_dedup_pipeline.py` 同时守住“默认窗口不误合并”和“放开窗口确实会把不同执行折叠”两条路径。配置见 `dedup` 段；`dedup.enabled: false` 可完全关闭去重。
 
 这些口径都是“基于本次日志快照”的统计，不是数据库内部的真实执行成本。
 
@@ -273,7 +292,7 @@ LIMIT 20;
 | `schema_meta` | schema 版本 |
 | `batches` | 批次、配置哈希、输入哈希、创建时间、摘要 JSON |
 | `log_files` | 每个输入文件的编码、行数、解析/未解析/排除计数 |
-| `slow_queries` | 单条慢查、归一化 SQL、指纹、簇、成本向量 |
+| `slow_queries` | 单条慢查、归一化 SQL、指纹、簇、成本向量、事件 ID、重复于、冗余来源 JSON |
 | `clusters` | 簇统计、分位数、放大倍数、锁等待占比、耗时占比 |
 | `plans` / `plan_nodes` | 计划快照与展平节点 |
 | `findings` | 统一发现与证据 JSON |
@@ -287,13 +306,13 @@ LIMIT 20;
 
 ## 10. 报告与 JSON 结构
 
-Markdown 报告固定包含：概览、TOP 指纹簇、高扫描放大清单、计划审计、诊断发现明细、规则触发表、未解析日志、未关联计划、排除语句、输入文件、口径与边界。
+Markdown 报告固定包含：概览、TOP 指纹簇、跨格式冗余来源、高扫描放大清单、计划审计、诊断发现明细、规则触发表、未解析日志、未关联计划、排除语句、输入文件、口径与边界。
 
 JSON 报告的顶层键稳定为：
 
 ```text
 schema_version, report_type, metadata,
-summary, file_stats, clusters, queries, plans, findings,
+summary, file_stats, clusters, queries, duplicate_sources, plans, findings,
 unparsed, excluded_statements
 ```
 

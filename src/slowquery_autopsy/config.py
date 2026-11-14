@@ -36,6 +36,7 @@ class AppConfig:
     fingerprint_rules: dict[str, Any]
     excluded_prefixes: list[str]
     quantile_method: str
+    dedup_rules: dict[str, Any]
     schema_path: Path
     plan_rules_path: Path
     plan_rules: dict[str, Any]
@@ -172,6 +173,17 @@ def load_config(path: str | Path) -> AppConfig:
     if quantile != "nearest_rank":
         raise ConfigError("fingerprint.quantile: only nearest_rank is supported")
 
+    dedup_cfg = raw.get("dedup", {})
+    if not isinstance(dedup_cfg, dict):
+        raise ConfigError("dedup: expected a mapping")
+    # Imported lazily to keep the dependency direction config -> analysis.
+    from .analysis.dedup import DedupRules
+
+    try:
+        dedup_rules = DedupRules.from_mapping(dedup_cfg)
+    except ValueError as exc:
+        raise ConfigError(str(exc)) from exc
+
     cost_cfg = _require_mapping(raw.get("cost", {}), "cost")
     cost_rules = cost_cfg.get("rules", [])
     if not isinstance(cost_rules, list):
@@ -252,6 +264,7 @@ def load_config(path: str | Path) -> AppConfig:
         fingerprint_rules=fingerprint_rules,
         excluded_prefixes=excluded_prefixes,
         quantile_method=quantile,
+        dedup_rules=dedup_rules.as_dict(),
         schema_path=schema_path,
         plan_rules_path=audit_rules_path,
         plan_rules=plan_rules,

@@ -1,6 +1,10 @@
-"""SQLite ledger schema DDL."""
+"""SQLite ledger schema DDL and in-place migrations."""
 
-SCHEMA_VERSION = 1
+from __future__ import annotations
+
+import sqlite3
+
+SCHEMA_VERSION = 2
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS schema_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS batches (
@@ -22,6 +26,8 @@ CREATE TABLE IF NOT EXISTS slow_queries (
   sql_text TEXT NOT NULL, normalized_sql TEXT NOT NULL, fingerprint TEXT NOT NULL,
   cluster_id TEXT NOT NULL, log_format TEXT NOT NULL, excluded INTEGER NOT NULL,
   exclusion_reason TEXT NOT NULL, cost_json TEXT NOT NULL,
+  event_id TEXT NOT NULL DEFAULT '', duplicate_of TEXT NOT NULL DEFAULT '',
+  redundant_sources_json TEXT NOT NULL DEFAULT '[]',
   PRIMARY KEY (batch_id, query_id), FOREIGN KEY (batch_id) REFERENCES batches(batch_id)
 );
 CREATE TABLE IF NOT EXISTS clusters (
@@ -72,3 +78,19 @@ CREATE TABLE IF NOT EXISTS comparisons (
   head_batch_id TEXT NOT NULL, created_at TEXT NOT NULL, summary_json TEXT NOT NULL
 );
 """
+
+
+DEDUP_COLUMNS = {
+    "event_id": "TEXT NOT NULL DEFAULT ''",
+    "duplicate_of": "TEXT NOT NULL DEFAULT ''",
+    "redundant_sources_json": "TEXT NOT NULL DEFAULT '[]'",
+}
+
+
+def migrate_slow_queries(conn: sqlite3.Connection) -> None:
+    """Add the v2 dedup columns to a ledger created with the v1 DDL."""
+    columns = {row["name"] for row in conn.execute("PRAGMA table_info(slow_queries)")}
+    for name, definition in DEDUP_COLUMNS.items():
+        if name not in columns:
+            conn.execute(f"ALTER TABLE slow_queries ADD COLUMN {name} {definition}")
+    conn.commit()

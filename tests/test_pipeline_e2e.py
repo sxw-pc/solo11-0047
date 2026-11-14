@@ -30,7 +30,8 @@ def test_run_ledger_report_diff_chain(tmp_path, project_root, capsys):
     ledger_path = tmp_path / "data/ledger.sqlite3"
     with open_readonly(ledger_path) as ledger:
         first = ledger.list_batches()[0]["batch_id"]
-        assert ledger.get_batch(first)["summary"]["counts"]["queries"] == 20
+        assert ledger.get_batch(first)["summary"]["counts"]["queries"] == 22
+        assert ledger.get_batch(first)["summary"]["counts"]["analyzed_queries"] == 18
     report_dir = tmp_path / "reports" / first
     assert (report_dir / "report.md").is_file()
     assert (report_dir / "report.json").is_file()
@@ -44,7 +45,7 @@ def test_run_ledger_report_diff_chain(tmp_path, project_root, capsys):
         assert len(batches) == 2
         head = batches[0]["batch_id"]
         assert head != first
-        assert ledger.get_batch(head)["summary"]["counts"]["queries"] == 21
+        assert ledger.get_batch(head)["summary"]["counts"]["queries"] == 23
     capsys.readouterr()
     assert main(["diff", "--config", str(config_path), "--base", first, "--head", head]) == 0
     captured = capsys.readouterr()

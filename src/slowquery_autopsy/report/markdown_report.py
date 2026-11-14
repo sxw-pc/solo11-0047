@@ -25,19 +25,58 @@ def _severity_counts(result: AnalysisResult) -> str:
 def _overview(result: AnalysisResult) -> list[str]:
     counts = result.summary["counts"]
     durations = result.summary["durations"]
+    dedup = result.summary.get("deduplication", {})
+    dedup_line = (
+        f"- 跨格式事件去重：合并 {counts.get('duplicate_queries', 0)} 条冗余行，"
+        f"形成 {counts.get('dedup_groups', 0)} 个事件组；参与聚类的去重后事件数为 "
+        f"{counts['analyzed_queries']}"
+    )
+    if not dedup.get("enabled", True):
+        dedup_line = "- 跨格式事件去重：已禁用（analyzed_queries 等于原始行数）"
     lines = [
         "## 1. 概览", "",
         f"- 批次 ID：`{result.batch_id}`",
         f"- 配置哈希：`{result.config_hash[:16]}`",
         f"- 输入哈希：`{result.input_hash[:16]}`",
         f"- 输入文件：{counts['input_files']}；解析慢查：{counts['queries']}；参与聚类：{counts['analyzed_queries']}；排除：{counts['excluded_queries']}",
+        dedup_line,
         f"- 指纹簇：{counts['clusters']}；计划：{counts['plans']}；未关联计划：{counts['unassociated_plans']}",
         f"- 发现：{counts['findings']}；高危及以上：{counts['high_findings']}；未解析行：{counts['unparsed_lines']}",
         f"- 严重级别：{_severity_counts(result)}",
         f"- 全部慢查总耗时：{durations['all_queries_total_ms']:.3f} ms；参与分析总耗时：{durations['analyzed_total_ms']:.3f} ms",
-        f"- 分位数口径：nearest-rank（`ceil(q*n)`）；放大倍数 = 扫描行总数 / max(返回行总数, 1)",
+        "- 分位数口径：nearest-rank（`ceil(q*n)`）；放大倍数 = 扫描行总数 / max(返回行总数, 1)",
         "",
     ]
+    return lines
+
+
+def _dedup_section(result: AnalysisResult, limit: int = 20) -> list[str]:
+    groups = result.summary.get("deduplication", {}).get("groups", [])
+    lines = ["### 跨格式冗余来源", ""]
+    if not groups:
+        lines.extend(["未发现跨文件重复事件。", ""])
+        return lines
+    lines.extend([
+        "同一物理慢查在不同导出文件中只计一次；以下冗余行仍保留来源文件与行号。", "",
+        "| 事件 | 代表行 | 冗余来源（文件:行号） | 格式 |",
+        "|---|---|---|---|",
+    ])
+    for group in groups[:limit]:
+        representative = group["representative"]
+        sources = ", ".join(
+            f"{item['source_file']}:{item['line_no']}" for item in group["redundant_sources"]
+        )
+        formats = ", ".join(sorted({
+            representative["log_format"],
+            *(item["log_format"] for item in group["redundant_sources"]),
+        }))
+        lines.append(
+            f"| `{group['event_id']}` | {_cell(representative['source_file'])}:{representative['line_no']} | "
+            f"{_cell(sources)} | {_cell(formats)} |"
+        )
+    if len(groups) > limit:
+        lines.append(f"| … | … | 其余 {len(groups) - limit} 组 | … |")
+    lines.append("")
     return lines
 
 
@@ -182,6 +221,7 @@ def render_markdown(result: AnalysisResult) -> str:
     ]
     lines.extend(_overview(result))
     lines.extend(_clusters(result, top))
+    lines.extend(_dedup_section(result, top))
     lines.extend(_plan_and_findings(result))
     lines.extend(_exceptions(result, preview))
     lines.extend(_appendix(result))

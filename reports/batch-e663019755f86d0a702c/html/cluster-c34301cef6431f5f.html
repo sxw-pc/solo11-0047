@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>簇 c34301cef6431f5f · 慢查解剖台</title>
+<style>:root { --bg:#f5f2ea; --panel:#fffdf7; --ink:#20241f; --muted:#6c7068;
+  --line:#d8d2c4; --accent:#245c4f; --warn:#8a4b1f; --high:#a02f2f; }
+* { box-sizing: border-box; }
+body { margin:0; background:var(--bg); color:var(--ink);
+  font:15px/1.55 "Segoe UI", "Microsoft YaHei", system-ui, sans-serif; }
+header, main, footer { max-width:1120px; margin:0 auto; padding:0 24px; }
+header { padding-top:36px; padding-bottom:18px; border-bottom:2px solid var(--ink); }
+footer { margin-top:36px; padding-top:16px; padding-bottom:32px;
+  border-top:1px solid var(--line); color:var(--muted); font-size:12px; }
+h1 { font-size:30px; line-height:1.2; margin:6px 0 10px; letter-spacing:-.02em; }
+h2 { margin:30px 0 12px; font-size:20px; border-left:4px solid var(--accent); padding-left:10px; }
+h3 { margin:20px 0 8px; font-size:16px; }
+a { color:var(--accent); text-decoration-thickness:1px; text-underline-offset:2px; }
+code { background:#ede8dc; border-radius:3px; padding:1px 4px; font-size:.9em; }
+pre { background:#1f2622; color:#f3efe4; padding:16px; overflow:auto;
+  border-radius:6px; font-size:13px; line-height:1.5; }
+table { width:100%; border-collapse:collapse; background:var(--panel);
+  border:1px solid var(--line); margin:10px 0; font-size:13px; }
+th, td { border-bottom:1px solid var(--line); padding:8px 10px; text-align:left; vertical-align:top; }
+th { background:#e9e3d5; font-weight:600; }
+tr:last-child td { border-bottom:0; }
+.eyebrow { color:var(--muted); text-transform:uppercase; letter-spacing:.12em;
+  font-size:11px; margin:0; }
+.muted { color:var(--muted); }
+.metrics { display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:10px; }
+.metric { background:var(--panel); border:1px solid var(--line); padding:14px; border-radius:5px; }
+.metric strong { display:block; font-size:24px; color:var(--accent); }
+.metric span { color:var(--muted); font-size:12px; }
+.sev { font-weight:700; text-transform:uppercase; font-size:11px; }
+.sev-critical, .sev-high { color:var(--high); }
+.sev-medium { color:var(--warn); }
+section { margin-bottom:8px; }</style>
+</head>
+<body>
+<header>
+  <p class="eyebrow"><a href="index.html">← 返回批次索引</a></p>
+  <h1>指纹簇 <code>c34301cef6431f5f</code></h1>
+  <p class="muted">出现 4 次 · 总耗时 8450.000 ms · 扫描放大 1640.62x</p>
+</header>
+<main>
+  <section>
+    <h2>耗时统计</h2>
+    <div class="metrics">
+      <div class="metric"><strong>2112.500</strong><span>平均 ms</span></div>
+      <div class="metric"><strong>2050.000</strong><span>P50 ms</span></div>
+      <div class="metric"><strong>2400.000</strong><span>P95 ms</span></div>
+      <div class="metric"><strong>1800.000</strong><span>最小 ms</span></div>
+      <div class="metric"><strong>2400.000</strong><span>最大 ms</span></div>
+      <div class="metric"><strong>40.24%</strong><span>锁等待占比</span></div>
+      <div class="metric"><strong>525000</strong><span>扫描行</span></div>
+      <div class="metric"><strong>320</strong><span>返回行</span></div>
+    </div>
+  </section>
+  <section>
+    <h2>样本 SQL</h2>
+    <pre>SELECT c.id, c.name, COUNT(o.id) AS order_count
+FROM customers c
+JOIN orders o ON o.customer_id = c.id
+WHERE lower(c.region) = &#39;south&#39;
+GROUP BY c.id, c.name
+ORDER BY order_count DESC
+LIMIT 100;</pre>
+    <h3>归一化语句</h3>
+    <pre>SELECT c.id,c.name,COUNT(o.id) AS order_count FROM customers c JOIN orders o ON o.customer_id = c.id WHERE LOWER(c.region) = ? GROUP BY c.id,c.name ORDER BY order_count DESC LIMIT ?;</pre>
+  </section>
+  <section>
+    <h2>关联发现</h2>
+    <table>
+      <thead><tr><th>级别</th><th>规则</th><th>finding_id</th><th>说明</th></tr></thead>
+      <tbody>
+      
+        <tr><td><span class="sev sev-high">high</span></td>
+        <td><code>COST-AVG-001</code></td><td><code>fnd-cab8157138614f6e</code></td><td>簇 c34301cef6431f5f 平均耗时 2112.5 ms，超过阈值 1000 ms。</td></tr>
+      
+        <tr><td><span class="sev sev-high">high</span></td>
+        <td><code>PLAN-CAST-001</code></td><td><code>fnd-f24b203f50898f73</code></td><td>节点 0 将数值列 customers.id（bigint）与字符串字面量 &#39;42&#39; 比较。</td></tr>
+      
+        <tr><td><span class="sev sev-high">high</span></td>
+        <td><code>PLAN-FUNC-001</code></td><td><code>fnd-cef91ad732333516</code></td><td>节点 0 的条件 lower(customers.region 包裹了已索引列 customers.region，可能导致普通索引失效。</td></tr>
+      
+        <tr><td><span class="sev sev-medium">medium</span></td>
+        <td><code>COST-LOCK-001</code></td><td><code>fnd-89d35d365e84f626</code></td><td>簇 c34301cef6431f5f 锁等待时间占执行时间比例 0.402367，超过阈值 0.3。</td></tr>
+      
+        <tr><td><span class="sev sev-medium">medium</span></td>
+        <td><code>COST-P95-001</code></td><td><code>fnd-c7fdf634a8f88dde</code></td><td>簇 c34301cef6431f5f 的 P95 耗时为 2400.0 ms（nearest-rank 口径）。</td></tr>
+      
+      </tbody>
+    </table>
+  </section>
+  <section>
+    <h2>单体慢查</h2>
+    <table>
+      <thead><tr><th>query_id</th><th>来源</th><th>耗时 ms</th><th>扫描/返回</th><th>时间</th></tr></thead>
+      <tbody>
+      
+        <tr>
+          <td><a href="query-q-dc41a79ae5ee498e.html"><code>q-dc41a79ae5ee498e</code></a></td>
+          <td>fixtures/logs/mysql_slow_01.log:37</td>
+          <td>1800.000</td>
+          <td>120000 / 80</td>
+          <td>2026-01-10T10:03:00Z</td>
+        </tr>
+      
+        <tr>
+          <td><a href="query-q-a83b49775a452c8f.html"><code>q-a83b49775a452c8f</code></a></td>
+          <td>fixtures/logs/mysql_slow_02.log:61</td>
+          <td>2050.000</td>
+          <td>130000 / 80</td>
+          <td>2026-01-10T11:06:00Z</td>
+        </tr>
+      
+        <tr>
+          <td><a href="query-q-2ee73dbb5c9a610f.html"><code>q-2ee73dbb5c9a610f</code></a></td>
+          <td>fixtures/logs/mysql_slow_02.log:74</td>
+          <td>2400.000</td>
+          <td>140000 / 80</td>
+          <td>2026-01-10T11:07:00Z</td>
+        </tr>
+      
+        <tr>
+          <td><a href="query-q-490f33eb24cae37f.html"><code>q-490f33eb24cae37f</code></a></td>
+          <td>fixtures/logs/pg_log_01.log:3</td>
+          <td>2200.000</td>
+          <td>135000 / 80</td>
+          <td>2026-01-10T12:02:00Z</td>
+        </tr>
+      
+      </tbody>
+    </table>
+  </section>
+</main>
+<footer>仅静态分析本地导出文件 · 不连接数据库 · 不执行 SQL · 不发起网络请求</footer>
+</body>
+</html>

@@ -1,0 +1,2 @@
+2026-01-10 10:00:00,svc_report,shopdemo,2.310,0.010,20,200000,node-a,SELECT *   FROM orders WHERE customer_id = 42 AND status = 'PAID' ORDER BY created_at DESC LIMIT 20;
+2026-01-10 10:03:00,svc_report,shopdemo,1.800,0.700,80,120000,node-b,"SELECT c.id, c.name, COUNT(o.id) AS order_count FROM customers c JOIN orders o ON o.customer_id = c.id WHERE lower(c.region) = 'south' GROUP BY c.id, c.name  ORDER BY order_count DESC LIMIT 100;"

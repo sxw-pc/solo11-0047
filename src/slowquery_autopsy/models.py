@@ -47,6 +47,13 @@ class SlowQuery:
     excluded: bool = False
     exclusion_reason: str = ""
     cost: dict[str, Any] = field(default_factory=dict)
+    event_id: str = ""
+    duplicate_of: str = ""
+    redundant_sources: list[dict[str, Any]] = field(default_factory=list)
+
+    @property
+    def is_duplicate(self) -> bool:
+        return bool(self.duplicate_of)
 
     @property
     def amplification(self) -> float:
@@ -77,6 +84,10 @@ class SlowQuery:
             "excluded": self.excluded,
             "exclusion_reason": self.exclusion_reason,
             "cost": self.cost,
+            "event_id": self.event_id,
+            "duplicate_of": self.duplicate_of,
+            "is_duplicate": self.is_duplicate,
+            "redundant_sources": self.redundant_sources,
         }
 
 
@@ -279,15 +290,10 @@ def severity_rank(severity: str) -> int:
 
 
 def sort_findings(findings: Iterable[Finding]) -> list[Finding]:
-    return sorted(
-        findings,
-        key=lambda f: (
-            severity_rank(f.severity),
-            f.category,
-            f.rule_id,
-            f.cluster_id,
-            f.plan_file,
-            f.node_path,
-            f.finding_id,
-        ),
-    )
+    def key(finding: Finding) -> tuple[Any, ...]:
+        return (
+            severity_rank(finding.severity), finding.category, finding.rule_id,
+            finding.cluster_id, finding.plan_file, finding.node_path, finding.finding_id,
+        )
+
+    return sorted(findings, key=key)

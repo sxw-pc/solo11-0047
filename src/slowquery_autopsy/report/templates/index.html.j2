@@ -17,7 +17,8 @@
     <h2>概览</h2>
     <div class="metrics">
       <div class="metric"><strong>{{ summary.counts.queries }}</strong><span>慢查记录</span></div>
-      <div class="metric"><strong>{{ summary.counts.analyzed_queries }}</strong><span>参与聚类</span></div>
+      <div class="metric"><strong>{{ summary.counts.analyzed_queries }}</strong><span>去重后事件 / 参与聚类</span></div>
+      <div class="metric"><strong>{{ summary.counts.duplicate_queries }}</strong><span>折叠的冗余行</span></div>
       <div class="metric"><strong>{{ summary.counts.clusters }}</strong><span>指纹簇</span></div>
       <div class="metric"><strong>{{ summary.counts.findings }}</strong><span>诊断发现</span></div>
       <div class="metric"><strong>{{ summary.counts.high_findings }}</strong><span>高危及以上</span></div>
@@ -46,6 +47,28 @@
       {% endfor %}
       </tbody>
     </table>
+  </section>
+
+  <section>
+    <h2>跨格式冗余来源</h2>
+    <p class="muted">同一物理慢查在不同文件中只计一次；以下冗余行仍保留来源与行号。</p>
+    {% if summary.deduplication and summary.deduplication.groups %}
+    <table>
+      <thead><tr><th>事件</th><th>代表行</th><th>冗余来源</th><th>格式</th></tr></thead>
+      <tbody>
+      {% for group in summary.deduplication.groups %}
+        <tr>
+          <td><code>{{ group.event_id }}</code></td>
+          <td>{{ group.representative.source_file }}:{{ group.representative.line_no }}</td>
+          <td>{% for item in group.redundant_sources %}{{ item.source_file }}:{{ item.line_no }}{% if not loop.last %}<br>{% endif %}{% endfor %}</td>
+          <td>{{ group.representative.log_format }}{% for item in group.redundant_sources %} · {{ item.log_format }}{% endfor %}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="muted">未发现跨文件重复事件。</p>
+    {% endif %}
   </section>
 
   <section>

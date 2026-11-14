@@ -39,9 +39,12 @@ def cmd_run(args: argparse.Namespace) -> int:
     state = "inserted" if inserted else "already existed (idempotent no-op)"
     print(f"batch {result.batch_id}: {state}")
     print(
-        "queries={queries} clusters={clusters} plans={plans} findings={findings} "
-        "high={high} unparsed={unparsed}".format(
-            queries=len(result.queries), clusters=len(result.clusters), plans=len(result.plans),
+        "queries={queries} analyzed={analyzed} duplicates={duplicates} clusters={clusters} "
+        "plans={plans} findings={findings} high={high} unparsed={unparsed}".format(
+            queries=len(result.queries),
+            analyzed=result.summary["counts"]["analyzed_queries"],
+            duplicates=result.summary["counts"]["duplicate_queries"],
+            clusters=len(result.clusters), plans=len(result.plans),
             findings=len(result.findings),
             high=sum(1 for finding in result.findings if finding.severity in ("critical", "high")),
             unparsed=len(result.unparsed),
@@ -139,6 +142,8 @@ def cmd_validate(args: argparse.Namespace) -> int:
             print(f"VALID {config.config_path}")
             print(
                 f"inputs={len(config.inputs)} queries={len(result.queries)} "
+                f"analyzed={result.summary['counts']['analyzed_queries']} "
+                f"duplicates={result.summary['counts']['duplicate_queries']} "
                 f"clusters={len(result.clusters)} plans={len(result.plans)} "
                 f"findings={len(result.findings)} unparsed={len(result.unparsed)}"
             )

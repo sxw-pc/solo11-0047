@@ -61,7 +61,17 @@ def _cluster_from_queries(queries: list[SlowQuery], overall_total: float) -> Clu
 
 
 def build_clusters(queries: Iterable[SlowQuery]) -> list[Cluster]:
-    included = [query for query in queries if not query.excluded and query.fingerprint]
+    """Aggregate by fingerprint over *events*, never over raw log rows.
+
+    Rows folded by :mod:`slowquery_autopsy.analysis.dedup` carry
+    ``duplicate_of`` and are skipped here so ``query_count`` matches
+    ``summary.counts.analyzed_queries``.  Excluded metadata statements are
+    skipped as before.
+    """
+    included = [
+        query for query in queries
+        if not query.excluded and not query.duplicate_of and query.fingerprint
+    ]
     overall_total = sum(query.duration_ms for query in included)
     grouped: dict[str, list[SlowQuery]] = {}
     for query in included:

@@ -12,12 +12,12 @@ from slowquery_autopsy.ingest.log_parser import (
 
 def test_fixture_inputs_mixed_formats(config):
     outcome = parse_inputs(config)
-    assert len(outcome.queries) == 20
+    assert len(outcome.queries) == 22
     assert Counter(query.log_format for query in outcome.queries) == {
-        "mysql_slow": 16, "postgres_csv": 4
+        "mysql_slow": 16, "postgres_csv": 6
     }
     assert len(outcome.unparsed) == 3
-    assert len(outcome.file_stats) == 4
+    assert len(outcome.file_stats) == 5
     first = outcome.queries[0]
     assert first.source_file == "fixtures/logs/mysql_slow_01.log"
     assert first.line_no == 1

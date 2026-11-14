@@ -1,8 +1,35 @@
 from __future__ import annotations
 
+import sqlite3
+
 import pytest
 
 from slowquery_autopsy.store.ledger import Ledger, LedgerError, open_readonly
+from slowquery_autopsy.store.schema import SCHEMA_SQL
+
+
+def _legacy_sql() -> str:
+    return SCHEMA_SQL.replace(
+        "  event_id TEXT NOT NULL DEFAULT '', duplicate_of TEXT NOT NULL DEFAULT '',\n"
+        "  redundant_sources_json TEXT NOT NULL DEFAULT '[]',\n",
+        "",
+    )
+
+
+def test_init_schema_migrates_v1_ledger(tmp_path):
+    path = tmp_path / "legacy.sqlite3"
+    assert "event_id" not in _legacy_sql()
+    with sqlite3.connect(path) as conn:
+        conn.executescript(_legacy_sql())
+        conn.execute("INSERT INTO schema_meta(key, value) VALUES ('version', '1')")
+    with Ledger(path) as ledger:
+        ledger.init_schema()
+        columns = {row["name"] for row in ledger.conn.execute("PRAGMA table_info(slow_queries)")}
+        assert {"event_id", "duplicate_of", "redundant_sources_json"} <= columns
+        version = ledger.conn.execute(
+            "SELECT value FROM schema_meta WHERE key = 'version'"
+        ).fetchone()["value"]
+        assert version == "2"
 
 
 def test_schema_and_idempotent_batch(ledger_result):
@@ -15,7 +42,9 @@ def test_schema_and_idempotent_batch(ledger_result):
         assert ledger.save_batch(result) is False
         assert len(ledger.list_batches()) == 1
         batch = ledger.get_batch(result.batch_id)
-        assert batch["summary"]["counts"]["queries"] == 20
+        assert batch["summary"]["counts"]["queries"] == 22
+        assert batch["summary"]["counts"]["analyzed_queries"] == 18
+        assert batch["summary"]["counts"]["duplicate_queries"] == 2
         assert batch["status"] == "complete"
 
 
@@ -23,7 +52,13 @@ def test_read_only_queries_and_write_rejection(ledger_result):
     config, result = ledger_result
     with open_readonly(config.ledger_path) as ledger:
         assert ledger.readonly is True
-        assert len(ledger.list_queries(result.batch_id)) == 20
+        assert len(ledger.list_queries(result.batch_id)) == 22
+        folded = ledger.list_duplicate_sources(result.batch_id)
+        assert len(folded) == 2
+        assert {item["source_file"] for item in folded} == {
+            "fixtures/logs/pg_crossformat_duplicates.log"
+        }
+        assert all(item["line_no"] >= 1 for item in folded)
         assert len(ledger.list_unparsed(result.batch_id)) == 3
         assert len(ledger.list_findings(result.batch_id)) == len(result.findings)
         clusters = ledger.list_clusters(result.batch_id)

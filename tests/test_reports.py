@@ -36,7 +36,9 @@ def test_json_report_fields_and_determinism(temp_config, result):
     assert payload["schema_version"] == 1
     assert payload["metadata"]["batch_id"] == result.batch_id
     assert len(payload["clusters"]) == 4
-    assert len(payload["queries"]) == 20
+    assert len(payload["queries"]) == 22
+    assert len(payload["duplicate_sources"]) == 2
+    assert payload["summary"]["counts"]["analyzed_queries"] == 18
     assert len(payload["findings"]) == len(result.findings)
     assert "evidence" in payload["findings"][0]
     assert payload["unparsed"][0]["line_no"] >= 1

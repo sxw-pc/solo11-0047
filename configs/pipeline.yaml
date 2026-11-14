@@ -17,6 +17,9 @@ inputs:
   - path: fixtures/logs/pg_log_01.log
     format: postgres_csv
     encoding: utf-8
+  - path: fixtures/logs/pg_crossformat_duplicates.log
+    format: postgres_csv
+    encoding: utf-8
   - path: fixtures/logs/malformed_lines.log
     format: mysql_slow
     encoding: utf-8
@@ -42,6 +45,19 @@ fingerprint:
   rules_file: configs/fingerprint_rules.yaml
   excluded_statement_prefixes: [SET, SHOW, USE]
   quantile: nearest_rank
+# Cross-file event deduplication. A row pair must agree on normalized SQL and
+# ordered tokens AND fall inside every tolerance below. Keep the window tight:
+# merging distinct executions corrupts cluster counts and finding.query_count.
+dedup:
+  enabled: true
+  time_tolerance_seconds: 1
+  duration_tolerance_ms: 2
+  duration_tolerance_ratio: 0.002
+  lock_tolerance_ms: 1
+  lock_tolerance_ratio: 0.05
+  rows_tolerance: 0
+  rows_tolerance_ratio: 0.001
+  cross_file_only: true
 cost:
   rules:
     - id: COST-AMP-001

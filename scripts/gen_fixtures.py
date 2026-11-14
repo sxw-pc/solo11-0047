@@ -95,6 +95,22 @@ def write_logs() -> None:
     ]
     rows.append("2026-01-10T12:04:00Z,svc_report,shopdemo\n")
     (ROOT / "fixtures/logs/pg_log_01.log").write_text("".join(rows), encoding="utf-8")
+
+    # Two PG export rows that describe executions already present in
+    # mysql_slow_01.log. They differ only in timestamp shape (naive vs ``Z``),
+    # duration decimals and SQL whitespace, and must fold into one event.
+    cross_format = [
+        pg_row("2026-01-10 10:00:00", 2.310, 0.010, 20, 200000, "node-a",
+               "SELECT *   FROM orders WHERE customer_id = 42 AND status = 'PAID' "
+               "ORDER BY created_at DESC LIMIT 20;"),
+        pg_row("2026-01-10 10:03:00", 1.800, 0.700, 80, 120000, "node-b",
+               "SELECT c.id, c.name, COUNT(o.id) AS order_count FROM customers c "
+               "JOIN orders o ON o.customer_id = c.id WHERE lower(c.region) = 'south' "
+               "GROUP BY c.id, c.name  ORDER BY order_count DESC LIMIT 100;"),
+    ]
+    (ROOT / "fixtures/logs/pg_crossformat_duplicates.log").write_text(
+        "".join(cross_format), encoding="utf-8")
+
     malformed = (
         "this synthetic line is intentionally outside any slow-log block\n"
         + mysql_block("2026-01-10T13:00:00Z", "node-f", 0.90, 0.01, 1, 100, SQL["E"], 301)
