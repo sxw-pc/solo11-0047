@@ -9,3 +9,9 @@ data/*.sqlite3
 data/*.sqlite3-journal
 data/*.sqlite3-wal
 data/*.sqlite3-shm
+venv/
+node_modules/
+*.pyc
+.coverage
+.benchmarks/
+.env
