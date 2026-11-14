@@ -12,7 +12,7 @@ from .analysis.normalize import normalize_sql
 from .analysis.plan_audit import audit_plans
 from .analysis.risk_rules import build_findings, rule_catalog
 from .config import AppConfig
-from .ingest.log_parser import parse_inputs
+from .ingest.log_parser import ParseCache, parse_inputs
 from .ingest.plan_parser import load_plans
 from .ingest.schema_loader import load_schema
 from .models import AnalysisResult, SlowQuery
@@ -83,8 +83,12 @@ def _unassociated_payload(plans: list[Any]) -> list[dict[str, Any]]:
     return items
 
 
-def build_result(config: AppConfig, created_at: str | None = None) -> AnalysisResult:
-    parsed = parse_inputs(config)
+def build_result(
+    config: AppConfig,
+    created_at: str | None = None,
+    parse_cache: ParseCache | None = None,
+) -> AnalysisResult:
+    parsed = parse_inputs(config, cache=parse_cache)
     attach_fingerprints(parsed.queries, config)
     attach_query_costs(parsed.queries)
     clusters = build_clusters(parsed.queries)
@@ -165,14 +169,24 @@ def build_result(config: AppConfig, created_at: str | None = None) -> AnalysisRe
 
 
 def persist_result(config: AppConfig, result: AnalysisResult) -> bool:
+    """Persist a fully built result. Kept for callers that build without a cache."""
     with Ledger(config.ledger_path) as ledger:
         ledger.init_schema()
         return ledger.save_batch(result)
 
 
 def run(config: AppConfig, created_at: str | None = None, persist: bool = True) -> tuple[AnalysisResult, bool]:
-    result = build_result(config, created_at=created_at)
-    inserted = persist_result(config, result) if persist else False
+    if not persist:
+        # No ledger: parse every file, mirroring the historical behaviour.
+        result = build_result(config, created_at=created_at)
+        return result, False
+    # The same ledger connection serves as the file-level parse cache and as
+    # the batch store. Repeated runs with unchanged inputs hit the cache for
+    # every file and then no-op on the existing batch_id.
+    with Ledger(config.ledger_path) as ledger:
+        ledger.init_schema()
+        result = build_result(config, created_at=created_at, parse_cache=ledger)
+        inserted = ledger.save_batch(result)
     return result, inserted
 
 

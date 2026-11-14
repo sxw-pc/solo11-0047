@@ -9,6 +9,7 @@ from typing import Any
 
 from ..models import SEVERITY_ORDER, AnalysisResult
 from ..util.hashing import canonical_json
+from ..util.timefmt import utc_now_iso
 from .schema import SCHEMA_SQL
 
 SCHEMA_VERSION = 1
@@ -136,6 +137,67 @@ class Ledger:
     def get_batch(self, batch_id: str) -> dict[str, Any] | None:
         row = self.conn.execute("SELECT * FROM batches WHERE batch_id = ?", (batch_id,)).fetchone()
         return _batch_row(row) if row else None
+
+    def get_parse_cache(self, cache_key: str) -> dict[str, Any] | None:
+        row = self.conn.execute(
+            "SELECT display_path, sha256, payload_json FROM parse_cache WHERE cache_key = ?",
+            (cache_key,),
+        ).fetchone()
+        if row is None:
+            return None
+        try:
+            payload = json.loads(row["payload_json"])
+        except (TypeError, json.JSONDecodeError):
+            # A corrupt row is treated as a cache miss so the caller re-parses
+            # and overwrites it instead of crashing the batch build.
+            return None
+        return {
+            "display_path": row["display_path"],
+            "sha256": row["sha256"],
+            "payload": payload,
+        }
+
+    def put_parse_cache(
+        self, cache_key: str, display_path: str, file_sha256: str, payload: dict[str, Any]
+    ) -> None:
+        self._assert_writable()
+        with self.conn:
+            self.conn.execute(
+                "INSERT INTO parse_cache "
+                "(cache_key, display_path, sha256, payload_json, created_at) "
+                "VALUES (?, ?, ?, ?, ?) "
+                "ON CONFLICT(cache_key) DO UPDATE SET "
+                "display_path = excluded.display_path, sha256 = excluded.sha256, "
+                "payload_json = excluded.payload_json, created_at = excluded.created_at",
+                (cache_key, display_path, file_sha256,
+                 canonical_json(payload), utc_now_iso()),
+            )
+
+    def prune_parse_cache(self, active_keys: set[str]) -> int:
+        """Drop stale entries whose key no longer matches any current input.
+
+        Only rows for paths still present in the configuration are removed;
+        entries belonging to files that left the input list are retained so
+        re-adding the file keeps its warm cache. Returns the number deleted.
+        """
+        self._assert_writable()
+        if not active_keys:
+            return 0
+        placeholders = ",".join("?" for _ in active_keys)
+        with self.conn:
+            cursor = self.conn.execute(
+                f"DELETE FROM parse_cache "
+                f"WHERE cache_key NOT IN ({placeholders}) "
+                f"AND display_path IN ("
+                f"  SELECT DISTINCT display_path FROM parse_cache "
+                f"  WHERE cache_key IN ({placeholders}))",
+                tuple(active_keys) * 2,
+            )
+            return cursor.rowcount
+
+    def parse_cache_size(self) -> int:
+        row = self.conn.execute("SELECT COUNT(*) AS n FROM parse_cache").fetchone()
+        return int(row["n"])
 
     def latest_batch_id(self) -> str | None:
         row = self.conn.execute(

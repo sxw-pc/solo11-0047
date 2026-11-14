@@ -67,6 +67,10 @@ CREATE TABLE IF NOT EXISTS unparsed_lines (
 CREATE TABLE IF NOT EXISTS baselines (
   name TEXT PRIMARY KEY, batch_id TEXT NOT NULL, created_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS parse_cache (
+  cache_key TEXT PRIMARY KEY, display_path TEXT NOT NULL, sha256 TEXT NOT NULL,
+  payload_json TEXT NOT NULL, created_at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS comparisons (
   comparison_id TEXT PRIMARY KEY, base_batch_id TEXT NOT NULL,
   head_batch_id TEXT NOT NULL, created_at TEXT NOT NULL, summary_json TEXT NOT NULL

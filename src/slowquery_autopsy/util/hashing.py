@@ -34,11 +34,11 @@ def stable_id(prefix: str, *parts: Any, length: int = 16) -> str:
 
 
 def sha256_file(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(65536), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
+    return sha256_bytes(path.read_bytes())
+
+
+def sha256_bytes(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
 
 
 def combined_file_hash(items: list[tuple[str, str, Path]]) -> str:
@@ -55,3 +55,32 @@ def combined_file_hash(items: list[tuple[str, str, Path]]) -> str:
                     digest.update(chunk)
         digest.update(b"\0")
     return digest.hexdigest()
+
+
+def file_parse_cache_key(
+    display_path: str,
+    file_sha256: str,
+    log_format: str,
+    format_config: dict[str, Any],
+    encoding: str,
+    parser_version: int,
+    fingerprint_rules_sha256: str,
+) -> str:
+    """Bind every input that can change a file's derived parse result.
+
+    A hit is only valid when *all* of the following match: the file's identity
+    (display path), its exact byte content (sha256), the declared log format and
+    its full format configuration, the configured encoding, the parser code
+    version and the fingerprint-rule set. Any configuration change therefore
+    produces a fresh key instead of replaying stale derived data.
+    """
+    payload = {
+        "display_path": display_path,
+        "sha256": file_sha256,
+        "log_format": log_format,
+        "format_config": format_config,
+        "encoding": encoding,
+        "parser_version": parser_version,
+        "fingerprint_rules_sha256": fingerprint_rules_sha256,
+    }
+    return stable_id("fpc", payload, length=32)

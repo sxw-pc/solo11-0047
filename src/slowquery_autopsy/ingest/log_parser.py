@@ -7,12 +7,20 @@ import io
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol
 
 from ..config import AppConfig, InputSpec
 from ..models import LogFileStat, SlowQuery, UnparsedLine
-from ..util.hashing import sha256_file
+from ..util.hashing import (
+    file_parse_cache_key,
+    sha256_bytes,
+)
 from ..util.timefmt import mysql_timestamp_to_iso, normalize_timestamp
+
+# Bump whenever the output of parse_mysql_slow / parse_postgres_csv / file
+# stat derivation changes shape or semantics. Stored inside every parse-cache
+# key so a parser upgrade silently invalidates every cached entry.
+LOG_PARSER_VERSION = 1
 
 METRICS_RE = re.compile(
     r"#\s*Query_time:\s*(?P<duration>[0-9.]+).*?"
@@ -46,10 +54,58 @@ class ParseOutcome:
     queries: list[SlowQuery] = field(default_factory=list)
     unparsed: list[UnparsedLine] = field(default_factory=list)
     file_stats: list[LogFileStat] = field(default_factory=list)
+    cache_hits: list[str] = field(default_factory=list)
+    cache_misses: list[str] = field(default_factory=list)
 
 
-def detect_encoding(path: Path, configured: str = "auto") -> tuple[str, str]:
-    data = path.read_bytes()
+class ParseCache(Protocol):
+    """File-level parse result cache shared between batches."""
+
+    def get_parse_cache(self, cache_key: str) -> dict[str, Any] | None: ...
+
+    def put_parse_cache(
+        self, cache_key: str, display_path: str, file_sha256: str, payload: dict[str, Any]
+    ) -> None: ...
+
+    def prune_parse_cache(self, active_keys: set[str]) -> int: ...
+
+
+class InMemoryParseCache:
+    """Dict-backed ParseCache used by tests and by cache-free call sites."""
+
+    def __init__(self) -> None:
+        self._rows: dict[str, dict[str, Any]] = {}
+
+    def get_parse_cache(self, cache_key: str) -> dict[str, Any] | None:
+        return self._rows.get(cache_key)
+
+    def put_parse_cache(
+        self, cache_key: str, display_path: str, file_sha256: str, payload: dict[str, Any]
+    ) -> None:
+        self._rows[cache_key] = {
+            "display_path": display_path,
+            "sha256": file_sha256,
+            "payload": payload,
+        }
+
+    def prune_parse_cache(self, active_keys: set[str]) -> int:
+        active_paths = {
+            row["display_path"] for key, row in self._rows.items() if key in active_keys
+        }
+        stale = [
+            key for key, row in self._rows.items()
+            if key not in active_keys and row["display_path"] in active_paths
+        ]
+        for key in stale:
+            del self._rows[key]
+        return len(stale)
+
+
+def detect_encoding(
+    path: Path, configured: str = "auto", data: bytes | None = None
+) -> tuple[str, str]:
+    if data is None:
+        data = path.read_bytes()
     if configured not in ("auto", ""):
         return data.decode(configured), configured
     if data.startswith(b"\xef\xbb\xbf"):
@@ -225,8 +281,14 @@ def parse_postgres_csv(
     return queries, unparsed
 
 
-def parse_file(input_spec: InputSpec, format_config: dict[str, Any]) -> ParseOutcome:
-    text, encoding = detect_encoding(input_spec.path, input_spec.encoding)
+def parse_bytes(
+    input_spec: InputSpec,
+    format_config: dict[str, Any],
+    data: bytes,
+    file_sha256: str,
+) -> ParseOutcome:
+    """Parse one file from its raw bytes; no filesystem access beyond decode."""
+    text, encoding = detect_encoding(input_spec.path, input_spec.encoding, data)
     if format_config["type"] == "mysql_slow":
         queries, unparsed = parse_mysql_slow(text, input_spec.display_path)
     else:
@@ -235,7 +297,7 @@ def parse_file(input_spec: InputSpec, format_config: dict[str, Any]) -> ParseOut
         path=input_spec.display_path,
         log_format=input_spec.log_format,
         encoding=encoding,
-        sha256=sha256_file(input_spec.path),
+        sha256=file_sha256,
         line_count=len(text.splitlines()),
         parsed_count=len(queries),
         unparsed_count=len(unparsed),
@@ -243,14 +305,124 @@ def parse_file(input_spec: InputSpec, format_config: dict[str, Any]) -> ParseOut
     return ParseOutcome(queries=queries, unparsed=unparsed, file_stats=[stat])
 
 
-def parse_inputs(config: AppConfig) -> ParseOutcome:
+def parse_file(input_spec: InputSpec, format_config: dict[str, Any]) -> ParseOutcome:
+    data = input_spec.path.read_bytes()
+    return parse_bytes(input_spec, format_config, data, sha256_bytes(data))
+
+
+def outcome_to_payload(outcome: ParseOutcome) -> dict[str, Any]:
+    """Serialize a single-file outcome into a JSON-safe cache payload."""
+    if len(outcome.file_stats) != 1:
+        raise ValueError("cache payload requires exactly one file stat")
+    stat = outcome.file_stats[0]
+    return {
+        "parser_version": LOG_PARSER_VERSION,
+        "queries": [query.as_dict() for query in outcome.queries],
+        "unparsed": [item.as_dict() for item in outcome.unparsed],
+        "file_stat": {
+            "path": stat.path,
+            "log_format": stat.log_format,
+            "encoding": stat.encoding,
+            "sha256": stat.sha256,
+            "line_count": stat.line_count,
+            "parsed_count": stat.parsed_count,
+            "unparsed_count": stat.unparsed_count,
+            "excluded_count": stat.excluded_count,
+        },
+    }
+
+
+def outcome_from_payload(payload: dict[str, Any]) -> ParseOutcome:
+    """Rebuild a fresh, mutable ParseOutcome from a cache payload.
+
+    Deserialization always allocates new model instances so callers can never
+    mutate shared cached state. excluded_count is reset to zero because it is a
+    pipeline-level (fingerprint/exclusion) derivation, not a parser result.
+    """
+    if payload.get("parser_version") != LOG_PARSER_VERSION:
+        raise ValueError("stale parser version in parse cache payload")
+    stat_payload = dict(payload["file_stat"])
+    stat_payload["excluded_count"] = 0
+    stat = LogFileStat(**stat_payload)
+    queries = [SlowQuery(**dict(item)) for item in payload.get("queries", [])]
+    unparsed = [UnparsedLine(**dict(item)) for item in payload.get("unparsed", [])]
+    return ParseOutcome(queries=queries, unparsed=unparsed, file_stats=[stat])
+
+
+def _fingerprint_rules_hash(config: AppConfig) -> str:
+    return config.source_hashes.get(config.display(config.fingerprint_rules_path), "")
+
+
+def parse_inputs(
+    config: AppConfig, cache: ParseCache | None = None
+) -> ParseOutcome:
+    """Parse every configured input, reusing unchanged files from ``cache``.
+
+    Files are processed strictly in configuration order, so the merged
+    queries keep each repeated source_file's line_no ordering and unparsed
+    entries receive the same final (file, line_no, reason) sort as a full
+    parse. A cache entry is only trusted when its key -- which binds content
+    hash, format, format config, encoding, parser version and fingerprint
+    rules -- matches and its stored identity/sha256 still describe the file
+    currently on disk.
+    """
     outcome = ParseOutcome()
+    rules_hash = _fingerprint_rules_hash(config)
+    active_keys: set[str] = set()
     for input_spec in config.inputs:
         if not input_spec.path.is_file():
             raise FileNotFoundError(f"input file not found: {input_spec.display_path}")
-        parsed = parse_file(input_spec, config.formats[input_spec.log_format])
+        format_config = config.formats[input_spec.log_format]
+        data = input_spec.path.read_bytes()
+        file_sha256 = sha256_bytes(data)
+        cache_key = file_parse_cache_key(
+            input_spec.display_path,
+            file_sha256,
+            input_spec.log_format,
+            format_config,
+            input_spec.encoding,
+            LOG_PARSER_VERSION,
+            rules_hash,
+        )
+        active_keys.add(cache_key)
+        cached = cache.get_parse_cache(cache_key) if cache is not None else None
+        if cached is not None and (
+            cached.get("display_path") != input_spec.display_path
+            or cached.get("sha256") != file_sha256
+        ):
+            cached = None
+        parsed: ParseOutcome | None = None
+        if cached is not None:
+            try:
+                candidate = outcome_from_payload(cached["payload"])
+            except (KeyError, TypeError, ValueError):
+                # Corrupt or schema-incompatible cache row: fall back to parsing.
+                candidate = None
+            # Never replay stale stats; file_stats must describe this run.
+            if candidate is not None and (
+                candidate.file_stats[0].sha256 != file_sha256
+                or candidate.file_stats[0].path != input_spec.display_path
+            ):
+                candidate = None
+            if candidate is not None:
+                parsed = candidate
+                outcome.cache_hits.append(input_spec.display_path)
+        if parsed is None:
+            parsed = parse_bytes(input_spec, format_config, data, file_sha256)
+            if cache is not None:
+                cache.put_parse_cache(
+                    cache_key,
+                    input_spec.display_path,
+                    file_sha256,
+                    outcome_to_payload(parsed),
+                )
+            outcome.cache_misses.append(input_spec.display_path)
         outcome.queries.extend(parsed.queries)
         outcome.unparsed.extend(parsed.unparsed)
         outcome.file_stats.extend(parsed.file_stats)
     outcome.unparsed.sort(key=lambda item: (item.file, item.line_no, item.reason))
+    if cache is not None:
+        # Remove stale variants of files still in the input set; entries for
+        # inputs that were removed from the config are left warm on purpose.
+        cache.prune_parse_cache(active_keys)
     return outcome
