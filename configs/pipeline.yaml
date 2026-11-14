@@ -80,6 +80,27 @@ cost:
       severity: medium
       description: "簇 {cluster_id} 锁等待时间占执行时间比例 {actual}，超过阈值 {threshold}。"
       recommendation: 检查事务边界、行锁竞争与批量更新提交粒度。
+    - id: COST-SHARE-001
+      title: 簇总耗时占批次比例过高
+      metric: total_duration_ms
+      operator: gte
+      threshold: 0.30
+      min_count: 1
+      severity: medium
+      basis: batch_share
+      description: "簇 {cluster_id} 总耗时 {actual} ms，占本批次 {batch_clusters} 个簇总耗时的 {relative_percent}%（阈值 {threshold}，比例口径）。"
+      recommendation: 该簇是批次的主要耗时来源，优先结合执行计划与调用频次复核；相对规则需至少两个簇参与。
+    - id: COST-MEDIAN-001
+      title: 簇总耗时远超批次中位数
+      metric: total_duration_ms
+      operator: gte
+      threshold: 2.0
+      min_count: 1
+      severity: medium
+      basis: batch_median
+      description: "簇 {cluster_id} 总耗时 {actual} ms，为本批次簇中位数 {baseline_value} ms 的 {relative_value} 倍（阈值 {threshold} 倍）。"
+      recommendation: 与同批次其它簇对比后再判断是否为异常长尾；单一簇批次不触发本规则。
+
 plan:
   schema_file: fixtures/schema_snapshot.json
   rules_file: configs/plan_audit_rules.yaml

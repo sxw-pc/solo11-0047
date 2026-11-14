@@ -156,12 +156,21 @@ CSV 可用字段：`timestamp`、`user`、`database`、`duration_sec`、`lock_se
 |---|---|---|
 | `id` | 是 | 稳定规则 ID |
 | `title` / `description` / `recommendation` | `title` 必填 | 展示文案，可含 `{actual}`、`{threshold}`、`{cluster_id}` 等占位符 |
-| `metric` | 是 | `amplification`、`avg_duration_ms`、`p95_duration_ms`、`lock_ratio`、`total_duration_ms`、`projected_ms_per_1k_calls`、`query_count` |
+| `metric` | 是 | `amplification`、`avg_duration_ms`、`p95_duration_ms`、`lock_ratio`、`total_duration_ms`、`projected_ms_per_1k_calls`、`query_count`、`total_rows_examined`、`total_rows_sent`、`duration_share` |
 | `operator` | 是 | `gt`、`gte`、`lt`、`lte`、`eq` |
 | `threshold` | 是 | 比较阈值 |
+| `basis` | 否 | `absolute`（默认）或相对口径 `batch_share` / `batch_median` |
 | `min_count` | 否 | 簇内最少查询次数，默认 `0` |
 | `severity` | 是 | `critical` / `high` / `medium` / `low` / `info` |
 | `enabled` | 否 | 默认 `true` |
+
+相对口径说明：
+
+- `basis: batch_share`：以该簇指标之和 / 本批次所有簇该指标之和作为比较值。`threshold` 取 `(0, 1]` 的比例，仅允许可加指标（`total_duration_ms`、`query_count`、`total_rows_examined`、`total_rows_sent`），避免对均值、比值做“占比”。
+- `basis: batch_median`：以该簇指标 / 本批次所有簇该指标的中位数作为比较值。`threshold` 必须大于 `1` 的倍数。
+- 相对规则只允许 `gt` / `gte`（描述“异常偏大”），`lt` / `lte` / `eq` 在加载阶段即被拒绝。
+- 相对口径的基线只计算一次，与簇的遍历顺序无关；批次少于两个簇（或基线为 0）时相对规则不产生发现——单一簇即整批，不能凭空判为“全批次最高危”。
+- 相对规则生成的 `evidence` 同时包含绝对值（`actual`）、阈值（`threshold`）、相对值（`relative_value`）、基线（`baseline_value`）、参与簇数（`batch_clusters`）；`batch_share` 额外给出 `relative_percent`。文案模板可使用这些占位符，便于 DBA 复核。
 
 ### 5.5 `plan`、`risk`、`reports`
 
@@ -248,7 +257,7 @@ LIMIT 20;
 
 ## 8. 规则目录
 
-默认启用四条成本规则和五条计划规则。规则 ID 是稳定接口；关闭规则请只用配置覆盖，不要改历史 ID。
+默认启用六条成本规则和五条计划规则，其中两条成本规则使用批内相对口径。规则 ID 是稳定接口；关闭规则请只用配置覆盖，不要改历史 ID。
 
 | 规则 ID | 类别 | 默认级别 | 含义 | 主要证据 |
 |---|---|---|---|---|
@@ -256,6 +265,8 @@ LIMIT 20;
 | `COST-AVG-001` | 成本 | high | 簇平均耗时超阈值 | 平均耗时、阈值、次数 |
 | `COST-P95-001` | 成本 | medium | 簇 P95 耗时超阈值 | P95、阈值、nearest-rank 口径 |
 | `COST-LOCK-001` | 成本 | medium | 锁等待占执行时间比例超阈值 | 锁等待占比、阈值 |
+| `COST-SHARE-001` | 成本 | medium | 簇总耗时占本批次比例过高（`batch_share`） | 绝对值、占比、批次总耗时、参与簇数 |
+| `COST-MEDIAN-001` | 成本 | medium | 簇总耗时远超本批次簇中位数（`batch_median`） | 绝对值、相对倍数、中位数、参与簇数 |
 | `PLAN-FULLSCAN-001` | 计划 | high | 大表 `ALL` 全表扫描 | 表、行数、access_type、节点路径 |
 | `PLAN-FUNC-001` | 计划 | high | 索引列被函数包裹 | 表达式、函数、列、索引状态 |
 | `PLAN-CAST-001` | 计划 | high | 数值列与字符串字面量比较 | 列类型、字面量、表、节点路径 |

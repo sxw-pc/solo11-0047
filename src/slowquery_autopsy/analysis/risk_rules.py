@@ -73,7 +73,7 @@ def rule_catalog(
     for source, rules in (("cost", cost_rules), ("plan", plan_rules)):
         for rule in rules:
             override = overrides.get(rule["id"], {})
-            catalog.append({
+            catalog_entry = {
                 "rule_id": rule["id"],
                 "category": source,
                 "enabled": bool(override.get("enabled", rule.get("enabled", True))),
@@ -82,7 +82,12 @@ def rule_catalog(
                 "description": rule.get("description", ""),
                 "recommendation": rule.get("recommendation", ""),
                 "type": rule.get("type", rule.get("metric", "")),
-            })
+            }
+            if source == "cost":
+                catalog_entry["basis"] = str(rule.get("basis", "absolute"))
+                catalog_entry["operator"] = rule.get("operator", "")
+                catalog_entry["threshold"] = rule.get("threshold", "")
+            catalog.append(catalog_entry)
     catalog.sort(key=lambda item: (item["category"], item["rule_id"]))
     return catalog
 

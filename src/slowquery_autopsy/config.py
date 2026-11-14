@@ -8,6 +8,7 @@ from typing import Any
 
 import yaml
 
+from .analysis.cost import validate_cost_rule
 from .util.hashing import canonical_json, sha256_text
 
 
@@ -187,6 +188,10 @@ def load_config(path: str | Path) -> AppConfig:
         seen_rule_ids.add(item["id"])
         if item["operator"] not in ("gt", "gte", "lt", "lte", "eq"):
             raise ConfigError(f"cost.rules[{index}].operator: unsupported {item['operator']!r}")
+        try:
+            validate_cost_rule(item, f"cost.rules[{index}]")
+        except ValueError as exc:
+            raise ConfigError(str(exc)) from exc
 
     plan_cfg = _require_mapping(raw.get("plan", {}), "plan")
     schema_path = rel(plan_cfg.get("schema_file", ""), "plan.schema_file")
