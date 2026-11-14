@@ -80,6 +80,40 @@ class SlowQuery:
         }
 
 
+@dataclass(frozen=True)
+class ClusterWindowEvent:
+    """One burst event: consecutive cluster occurrences inside a time window.
+
+    Occurrences belong to the same event while the gap between consecutive
+    timestamps does not exceed the configured window. Timestamps are the
+    normalized UTC strings stored at ingestion, so events compare MySQL slow
+    log and PostgreSQL CSV occurrences on the same timeline.
+    """
+
+    event_index: int
+    started_at: str
+    ended_at: str
+    occurrence_count: int
+    total_duration_ms: float
+    max_query_duration_ms: float
+    rows_examined: int
+    rows_sent: int
+    query_ids: list[str] = field(default_factory=list)
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "event_index": self.event_index,
+            "started_at": self.started_at,
+            "ended_at": self.ended_at,
+            "occurrence_count": self.occurrence_count,
+            "total_duration_ms": round(self.total_duration_ms, 3),
+            "max_query_duration_ms": round(self.max_query_duration_ms, 3),
+            "rows_examined": self.rows_examined,
+            "rows_sent": self.rows_sent,
+            "query_ids": list(self.query_ids),
+        }
+
+
 @dataclass
 class Cluster:
     fingerprint: str
@@ -100,6 +134,11 @@ class Cluster:
     projected_ms_per_1k_calls: float
     query_ids: list[str] = field(default_factory=list)
     cost: dict[str, Any] = field(default_factory=dict)
+    window_seconds: int = 0
+    window_event_count: int = 0
+    window_max_duration_ms: float = 0.0
+    window_max_rows_examined: int = 0
+    window_events: list[ClusterWindowEvent] = field(default_factory=list)
 
     @property
     def cluster_id(self) -> str:
@@ -126,6 +165,11 @@ class Cluster:
             "projected_ms_per_1k_calls": round(self.projected_ms_per_1k_calls, 3),
             "query_ids": self.query_ids,
             "cost": self.cost,
+            "window_seconds": self.window_seconds,
+            "window_event_count": self.window_event_count,
+            "window_max_duration_ms": round(self.window_max_duration_ms, 3),
+            "window_max_rows_examined": self.window_max_rows_examined,
+            "window_events": [event.as_dict() for event in self.window_events],
         }
 
 

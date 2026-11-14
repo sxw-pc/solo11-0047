@@ -42,6 +42,10 @@ def cluster_metric(cluster: Cluster, metric: str) -> float:
         "total_duration_ms": cluster.total_duration_ms,
         "projected_ms_per_1k_calls": cluster.projected_ms_per_1k_calls,
         "query_count": float(cluster.query_count),
+        # Window-level burst attribution (see analysis.fingerprint).
+        "window_event_count": float(cluster.window_event_count),
+        "window_max_duration_ms": cluster.window_max_duration_ms,
+        "window_max_rows_examined": float(cluster.window_max_rows_examined),
     }
     if metric not in metrics:
         raise ValueError(f"unsupported cost metric: {metric!r}")

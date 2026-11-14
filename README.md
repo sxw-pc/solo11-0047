@@ -156,7 +156,7 @@ CSV 可用字段：`timestamp`、`user`、`database`、`duration_sec`、`lock_se
 |---|---|---|
 | `id` | 是 | 稳定规则 ID |
 | `title` / `description` / `recommendation` | `title` 必填 | 展示文案，可含 `{actual}`、`{threshold}`、`{cluster_id}` 等占位符 |
-| `metric` | 是 | `amplification`、`avg_duration_ms`、`p95_duration_ms`、`lock_ratio`、`total_duration_ms`、`projected_ms_per_1k_calls`、`query_count` |
+| `metric` | 是 | `amplification`、`avg_duration_ms`、`p95_duration_ms`、`lock_ratio`、`total_duration_ms`、`projected_ms_per_1k_calls`、`query_count`，以及窗口突发指标 `window_event_count`、`window_max_duration_ms`、`window_max_rows_examined` |
 | `operator` | 是 | `gt`、`gte`、`lt`、`lte`、`eq` |
 | `threshold` | 是 | 比较阈值 |
 | `min_count` | 否 | 簇内最少查询次数，默认 `0` |
@@ -243,6 +243,7 @@ LIMIT 20;
 6. 分位数采用 nearest-rank：排序后取第 `ceil(q*n)` 个值，不做插值。
 7. 扫描放大倍数 = 簇内扫描行总数 / `max(返回行总数, 1)`；锁等待占比 = 簇内锁等待时间总和 / 总耗时。
 8. 每千次调用耗时 = 平均耗时 × 1000（毫秒）。
+9. 窗口级突发归因（默认窗口 300 秒，可由 `build_clusters(..., window_seconds=...)` 配置）：同一指纹簇的出现按时间戳排序，相邻两次出现的间隔**严格大于**窗口秒数才开启新事件；间隔恰好等于窗口（端点时刻）仍归入当前事件。因此不使用固定网格，连续突发不会被窗口边界切碎，也无需手工对齐窗口。时间戳沿用入库时的 UTC ISO-8601 归一化结果，MySQL slow log 与 PostgreSQL CSV 在同一时间轴上比较；无法解析时间戳的出现各自成为独立事件，绝不静默合并。每个事件输出起止时间、出现次数、事件总耗时、单次最大耗时与窗口内扫描/返回行数，簇级汇总为 `window_event_count`（事件数）、`window_max_duration_ms`（单次事件最大耗时）、`window_max_rows_examined`（单事件窗口内最大扫描量），并同步写入成本向量，可作为成本规则指标。窗口事件挂在既有指纹簇上，不会产生额外簇，也不改变批次与簇计数。
 
 这些口径都是“基于本次日志快照”的统计，不是数据库内部的真实执行成本。
 
