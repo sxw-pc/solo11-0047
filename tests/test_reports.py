@@ -33,8 +33,12 @@ def test_json_report_fields_and_determinism(temp_config, result):
     written, base = _generate(temp_config, result)
     assert written["json"].endswith("report.json")
     payload = json.loads((base / "report.json").read_text(encoding="utf-8"))
-    assert payload["schema_version"] == 1
+    assert payload["schema_version"] == 2
     assert payload["metadata"]["batch_id"] == result.batch_id
+    assert len(payload["parent_clusters"]) == len(result.parent_clusters)
+    assert {p["structural_fingerprint"] for p in payload["parent_clusters"]} == {
+        c.structural_fingerprint for c in result.clusters
+    }
     assert len(payload["clusters"]) == 4
     assert len(payload["queries"]) == 20
     assert len(payload["findings"]) == len(result.findings)

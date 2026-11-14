@@ -79,22 +79,38 @@ class Ledger:
                     )
                 for query in result.queries:
                     self.conn.execute(
-                        "INSERT INTO slow_queries VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                        "INSERT INTO slow_queries VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                         (result.batch_id, query.query_id, query.source_file, query.line_no,
                          query.timestamp, query.duration_ms, query.lock_time_ms, query.rows_sent,
                          query.rows_examined, query.user, query.client, query.database, query.sql,
-                         query.normalized_sql, query.fingerprint, query.cluster_id, query.log_format,
+                         query.normalized_sql, query.fingerprint, query.structural_fingerprint,
+                         query.cluster_id, query.log_format,
                          int(query.excluded), query.exclusion_reason, canonical_json(query.cost)),
+                    )
+                for parent in result.parent_clusters:
+                    self.conn.execute(
+                        "INSERT INTO parent_clusters VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                        (result.batch_id, parent.structural_fingerprint, parent.sample_sql,
+                         parent.structural_sql, parent.query_count,
+                         len(parent.child_fingerprints), canonical_json(parent.child_fingerprints),
+                         canonical_json(parent.child_query_counts),
+                         parent.total_duration_ms, parent.avg_duration_ms,
+                         parent.min_duration_ms, parent.max_duration_ms,
+                         parent.p50_duration_ms, parent.p95_duration_ms,
+                         parent.total_rows_examined, parent.total_rows_sent,
+                         parent.amplification, parent.lock_ratio, parent.duration_share,
+                         parent.projected_ms_per_1k_calls, canonical_json(parent.cost)),
                     )
                 for cluster in result.clusters:
                     self.conn.execute(
-                        "INSERT INTO clusters VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                        "INSERT INTO clusters VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                         (result.batch_id, cluster.cluster_id, cluster.sample_sql, cluster.normalized_sql,
                          cluster.query_count, cluster.total_duration_ms, cluster.avg_duration_ms,
                          cluster.min_duration_ms, cluster.max_duration_ms, cluster.p50_duration_ms,
                          cluster.p95_duration_ms, cluster.total_rows_examined, cluster.total_rows_sent,
                          cluster.amplification, cluster.lock_ratio, cluster.duration_share,
-                         cluster.projected_ms_per_1k_calls, canonical_json(cluster.cost)),
+                         cluster.projected_ms_per_1k_calls, canonical_json(cluster.cost),
+                         cluster.structural_fingerprint),
                     )
                 for plan in result.plans:
                     self.conn.execute(
@@ -152,6 +168,20 @@ class Ledger:
             "ORDER BY total_duration_ms DESC, cluster_id ASC", (batch_id,)
         ).fetchall()
         return [_json_row(row, "cost_json", "cost") for row in rows]
+
+    def list_parent_clusters(self, batch_id: str) -> list[dict[str, Any]]:
+        rows = self.conn.execute(
+            "SELECT * FROM parent_clusters WHERE batch_id = ? "
+            "ORDER BY total_duration_ms DESC, structural_fingerprint ASC", (batch_id,)
+        ).fetchall()
+        items = []
+        for row in rows:
+            item = dict(row)
+            item["cost"] = json.loads(item.pop("cost_json"))
+            item["child_fingerprints"] = json.loads(item.pop("child_fingerprints_json"))
+            item["child_query_counts"] = json.loads(item.pop("child_query_counts_json"))
+            items.append(item)
+        return items
 
     def get_cluster(self, batch_id: str, cluster_id: str) -> dict[str, Any] | None:
         row = self.conn.execute(

@@ -34,6 +34,7 @@
         "q-24fe6f486b9399da"
       ],
       "sample_sql": "SELECT *\nFROM orders\nWHERE customer_id = 42\n  AND status = 'PAID'\nORDER BY created_at DESC\nLIMIT 20;",
+      "structural_fingerprint": "9361ac1923862e01",
       "total_duration_ms": 27050.0,
       "total_rows_examined": 2255000,
       "total_rows_sent": 200
@@ -65,6 +66,7 @@
         "q-e1fe67450557b82f"
       ],
       "sample_sql": "SELECT oi.order_id, SUM(oi.quantity) AS qty\nFROM order_items oi\nJOIN orders o ON o.id = oi.order_id\nWHERE o.created_at >= '2026-01-02'\nGROUP BY oi.order_id\nORDER BY qty DESC\nLIMIT 50;",
+      "structural_fingerprint": "29e91724c8e491cc",
       "total_duration_ms": 13200.0,
       "total_rows_examined": 2730000,
       "total_rows_sent": 150
@@ -97,6 +99,7 @@
         "q-490f33eb24cae37f"
       ],
       "sample_sql": "SELECT c.id, c.name, COUNT(o.id) AS order_count\nFROM customers c\nJOIN orders o ON o.customer_id = c.id\nWHERE lower(c.region) = 'south'\nGROUP BY c.id, c.name\nORDER BY order_count DESC\nLIMIT 100;",
+      "structural_fingerprint": "12de78d9d4b4e503",
       "total_duration_ms": 8450.0,
       "total_rows_examined": 525000,
       "total_rows_sent": 320
@@ -126,6 +129,7 @@
         "q-7ff29988fc4fa454"
       ],
       "sample_sql": "SELECT id, name FROM products WHERE id = 7;",
+      "structural_fingerprint": "22ee208a6ef6c9e4",
       "total_duration_ms": 900.0,
       "total_rows_examined": 100,
       "total_rows_sent": 1
@@ -502,6 +506,166 @@
     "input_hash": "80f40b08d5186227506275a1a00280b6988ef52c7ec871ba913e093043c5a125",
     "project": "slowquery-autopsy"
   },
+  "parent_clusters": [
+    {
+      "amplification": 11275.0,
+      "avg_duration_ms": 2705.0,
+      "child_cluster_count": 1,
+      "child_fingerprints": [
+        "b6b972a308926333"
+      ],
+      "child_query_counts": {
+        "b6b972a308926333": 10
+      },
+      "cluster_id": "9361ac1923862e01",
+      "cost": {
+        "amplification": 11275.0,
+        "avg_duration_ms": 2705.0,
+        "lock_ratio": 0.004436,
+        "p95_duration_ms": 3200.0,
+        "projected_ms_per_1k_calls": 2705000.0
+      },
+      "duration_share": 0.545363,
+      "lock_ratio": 0.004436,
+      "max_duration_ms": 3200.0,
+      "min_duration_ms": 2310.0,
+      "p50_duration_ms": 2660.0,
+      "p95_duration_ms": 3200.0,
+      "projected_ms_per_1k_calls": 2705000.0,
+      "query_count": 10,
+      "query_ids": [
+        "q-24fe6f486b9399da",
+        "q-254ca61cb16eea22",
+        "q-2e0c151bc7299aab",
+        "q-7ad42857cd54c1fc",
+        "q-93ec19a726c8822c",
+        "q-c674fe3a9027bd6e",
+        "q-caa4710351d7cd7b",
+        "q-dcea5caf2fe619c8",
+        "q-f143495e3e2f63be",
+        "q-f47fbeff17bee90d"
+      ],
+      "sample_sql": "SELECT *\nFROM orders\nWHERE customer_id = 42\n  AND status = 'PAID'\nORDER BY created_at DESC\nLIMIT 20;",
+      "structural_fingerprint": "9361ac1923862e01",
+      "structural_sql": "SELECT * FROM orders WHERE customer_id = ? AND status = ? ORDER BY created_at DESC LIMIT ? ;",
+      "total_duration_ms": 27050.0,
+      "total_rows_examined": 2255000,
+      "total_rows_sent": 200
+    },
+    {
+      "amplification": 18200.0,
+      "avg_duration_ms": 4400.0,
+      "child_cluster_count": 1,
+      "child_fingerprints": [
+        "af4b9db7cdc9c045"
+      ],
+      "child_query_counts": {
+        "af4b9db7cdc9c045": 3
+      },
+      "cluster_id": "29e91724c8e491cc",
+      "cost": {
+        "amplification": 18200.0,
+        "avg_duration_ms": 4400.0,
+        "lock_ratio": 0.005303,
+        "p95_duration_ms": 4800.0,
+        "projected_ms_per_1k_calls": 4400000.0
+      },
+      "duration_share": 0.266129,
+      "lock_ratio": 0.005303,
+      "max_duration_ms": 4800.0,
+      "min_duration_ms": 4000.0,
+      "p50_duration_ms": 4400.0,
+      "p95_duration_ms": 4800.0,
+      "projected_ms_per_1k_calls": 4400000.0,
+      "query_count": 3,
+      "query_ids": [
+        "q-cb1e9646f7ac45fb",
+        "q-e1fe67450557b82f",
+        "q-fb6729adb524239f"
+      ],
+      "sample_sql": "SELECT oi.order_id, SUM(oi.quantity) AS qty\nFROM order_items oi\nJOIN orders o ON o.id = oi.order_id\nWHERE o.created_at >= '2026-01-02'\nGROUP BY oi.order_id\nORDER BY qty DESC\nLIMIT 50;",
+      "structural_fingerprint": "29e91724c8e491cc",
+      "structural_sql": "SELECT SUM ( order_items . quantity ) , order_items . order_id FROM order_items JOIN orders ON orders . id = order_items . order_id WHERE orders . created_at >= ? GROUP BY order_items . order_id ORDER BY qty DESC LIMIT ? ;",
+      "total_duration_ms": 13200.0,
+      "total_rows_examined": 2730000,
+      "total_rows_sent": 150
+    },
+    {
+      "amplification": 1640.625,
+      "avg_duration_ms": 2112.5,
+      "child_cluster_count": 1,
+      "child_fingerprints": [
+        "c34301cef6431f5f"
+      ],
+      "child_query_counts": {
+        "c34301cef6431f5f": 4
+      },
+      "cluster_id": "12de78d9d4b4e503",
+      "cost": {
+        "amplification": 1640.625,
+        "avg_duration_ms": 2112.5,
+        "lock_ratio": 0.402367,
+        "p95_duration_ms": 2400.0,
+        "projected_ms_per_1k_calls": 2112500.0
+      },
+      "duration_share": 0.170363,
+      "lock_ratio": 0.402367,
+      "max_duration_ms": 2400.0,
+      "min_duration_ms": 1800.0,
+      "p50_duration_ms": 2050.0,
+      "p95_duration_ms": 2400.0,
+      "projected_ms_per_1k_calls": 2112500.0,
+      "query_count": 4,
+      "query_ids": [
+        "q-2ee73dbb5c9a610f",
+        "q-490f33eb24cae37f",
+        "q-a83b49775a452c8f",
+        "q-dc41a79ae5ee498e"
+      ],
+      "sample_sql": "SELECT c.id, c.name, COUNT(o.id) AS order_count\nFROM customers c\nJOIN orders o ON o.customer_id = c.id\nWHERE lower(c.region) = 'south'\nGROUP BY c.id, c.name\nORDER BY order_count DESC\nLIMIT 100;",
+      "structural_fingerprint": "12de78d9d4b4e503",
+      "structural_sql": "SELECT COUNT ( orders . id ) , customers . id , customers . name FROM customers JOIN orders ON orders . customer_id = customers . id WHERE LOWER ( customers . region ) = ? GROUP BY customers . id , customers . name ORDER BY order_count DESC LIMIT ? ;",
+      "total_duration_ms": 8450.0,
+      "total_rows_examined": 525000,
+      "total_rows_sent": 320
+    },
+    {
+      "amplification": 100.0,
+      "avg_duration_ms": 900.0,
+      "child_cluster_count": 1,
+      "child_fingerprints": [
+        "0be4b6b31b5181f8"
+      ],
+      "child_query_counts": {
+        "0be4b6b31b5181f8": 1
+      },
+      "cluster_id": "22ee208a6ef6c9e4",
+      "cost": {
+        "amplification": 100.0,
+        "avg_duration_ms": 900.0,
+        "lock_ratio": 0.011111,
+        "p95_duration_ms": 900.0,
+        "projected_ms_per_1k_calls": 900000.0
+      },
+      "duration_share": 0.018145,
+      "lock_ratio": 0.011111,
+      "max_duration_ms": 900.0,
+      "min_duration_ms": 900.0,
+      "p50_duration_ms": 900.0,
+      "p95_duration_ms": 900.0,
+      "projected_ms_per_1k_calls": 900000.0,
+      "query_count": 1,
+      "query_ids": [
+        "q-7ff29988fc4fa454"
+      ],
+      "sample_sql": "SELECT id, name FROM products WHERE id = 7;",
+      "structural_fingerprint": "22ee208a6ef6c9e4",
+      "structural_sql": "SELECT id , name FROM products WHERE id = ? ;",
+      "total_duration_ms": 900.0,
+      "total_rows_examined": 100,
+      "total_rows_sent": 1
+    }
+  ],
   "plans": [
     {
       "error": "",
@@ -744,6 +908,8 @@
       "rows_sent": 20,
       "source_file": "fixtures/logs/mysql_slow_01.log",
       "sql": "SELECT *\nFROM orders\nWHERE customer_id = 42\n  AND status = 'PAID'\nORDER BY created_at DESC\nLIMIT 20;",
+      "structural_fingerprint": "9361ac1923862e01",
+      "structural_sql": "SELECT * FROM orders WHERE customer_id = ? AND status = ? ORDER BY created_at DESC LIMIT ? ;",
       "timestamp": "2026-01-10T10:00:00Z",
       "user": "svc_app"
     },
@@ -772,6 +938,8 @@
       "rows_sent": 20,
       "source_file": "fixtures/logs/mysql_slow_01.log",
       "sql": "SELECT *\nFROM orders\nWHERE customer_id = 99\n  AND status = 'SHIPPED'\nORDER BY created_at DESC\nLIMIT 20;",
+      "structural_fingerprint": "9361ac1923862e01",
+      "structural_sql": "SELECT * FROM orders WHERE customer_id = ? AND status = ? ORDER BY created_at DESC LIMIT ? ;",
       "timestamp": "2026-01-10T10:01:00Z",
       "user": "svc_app"
     },
@@ -800,6 +968,8 @@
       "rows_sent": 20,
       "source_file": "fixtures/logs/mysql_slow_01.log",
       "sql": "SELECT *\nFROM orders\nWHERE customer_id = 7\n  AND status = 'REFUNDED'\nORDER BY created_at DESC\nLIMIT 20;",
+      "structural_fingerprint": "9361ac1923862e01",
+      "structural_sql": "SELECT * FROM orders WHERE customer_id = ? AND status = ? ORDER BY created_at DESC LIMIT ? ;",
       "timestamp": "2026-01-10T10:02:00Z",
       "user": "svc_app"
     },
@@ -828,6 +998,8 @@
       "rows_sent": 80,
       "source_file": "fixtures/logs/mysql_slow_01.log",
       "sql": "SELECT c.id, c.name, COUNT(o.id) AS order_count\nFROM customers c\nJOIN orders o ON o.customer_id = c.id\nWHERE lower(c.region) = 'south'\nGROUP BY c.id, c.name\nORDER BY order_count DESC\nLIMIT 100;",
+      "structural_fingerprint": "12de78d9d4b4e503",
+      "structural_sql": "SELECT COUNT ( orders . id ) , customers . id , customers . name FROM customers JOIN orders ON orders . customer_id = customers . id WHERE LOWER ( customers . region ) = ? GROUP BY customers . id , customers . name ORDER BY order_count DESC LIMIT ? ;",
       "timestamp": "2026-01-10T10:03:00Z",
       "user": "svc_app"
     },
@@ -856,6 +1028,8 @@
       "rows_sent": 0,
       "source_file": "fixtures/logs/mysql_slow_01.log",
       "sql": "SET SESSION long_query_time = 0.2;",
+      "structural_fingerprint": "",
+      "structural_sql": "",
       "timestamp": "2026-01-10T10:04:00Z",
       "user": "svc_app"
     },
@@ -884,6 +1058,8 @@
       "rows_sent": 12,
       "source_file": "fixtures/logs/mysql_slow_01.log",
       "sql": "SHOW INDEX FROM orders;",
+      "structural_fingerprint": "",
+      "structural_sql": "",
       "timestamp": "2026-01-10T10:05:00Z",
       "user": "svc_app"
     },
@@ -912,6 +1088,8 @@
       "rows_sent": 20,
       "source_file": "fixtures/logs/mysql_slow_02.log",
       "sql": "SELECT *\nFROM orders\nWHERE customer_id = 44\n  AND status = 'PAID'\nORDER BY created_at DESC\nLIMIT 20;",
+      "structural_fingerprint": "9361ac1923862e01",
+      "structural_sql": "SELECT * FROM orders WHERE customer_id = ? AND status = ? ORDER BY created_at DESC LIMIT ? ;",
       "timestamp": "2026-01-10T11:00:00Z",
       "user": "svc_app"
     },
@@ -940,6 +1118,8 @@
       "rows_sent": 20,
       "source_file": "fixtures/logs/mysql_slow_02.log",
       "sql": "SELECT *\nFROM orders\nWHERE customer_id = 12\n  AND status = 'NEW'\nORDER BY created_at DESC\nLIMIT 20;",
+      "structural_fingerprint": "9361ac1923862e01",
+      "structural_sql": "SELECT * FROM orders WHERE customer_id = ? AND status = ? ORDER BY created_at DESC LIMIT ? ;",
       "timestamp": "2026-01-10T11:01:00Z",
       "user": "svc_app"
     },
@@ -968,6 +1148,8 @@
       "rows_sent": 20,
       "source_file": "fixtures/logs/mysql_slow_02.log",
       "sql": "SELECT *\nFROM orders\nWHERE customer_id = 81\n  AND status = 'PAID'\nORDER BY created_at DESC\nLIMIT 20;",
+      "structural_fingerprint": "9361ac1923862e01",
+      "structural_sql": "SELECT * FROM orders WHERE customer_id = ? AND status = ? ORDER BY created_at DESC LIMIT ? ;",
       "timestamp": "2026-01-10T11:02:00Z",
       "user": "svc_app"
     },
@@ -996,6 +1178,8 @@
       "rows_sent": 20,
       "source_file": "fixtures/logs/mysql_slow_02.log",
       "sql": "SELECT *\nFROM orders\nWHERE customer_id = 33\n  AND status = 'CANCELLED'\nORDER BY created_at DESC\nLIMIT 20;",
+      "structural_fingerprint": "9361ac1923862e01",
+      "structural_sql": "SELECT * FROM orders WHERE customer_id = ? AND status = ? ORDER BY created_at DESC LIMIT ? ;",
       "timestamp": "2026-01-10T11:03:00Z",
       "user": "svc_app"
     },
@@ -1024,6 +1208,8 @@
       "rows_sent": 20,
       "source_file": "fixtures/logs/mysql_slow_02.log",
       "sql": "SELECT *\nFROM orders\nWHERE customer_id = 5\n  AND status = 'PAID'\nORDER BY created_at DESC\nLIMIT 20;",
+      "structural_fingerprint": "9361ac1923862e01",
+      "structural_sql": "SELECT * FROM orders WHERE customer_id = ? AND status = ? ORDER BY created_at DESC LIMIT ? ;",
       "timestamp": "2026-01-10T11:04:00Z",
       "user": "svc_app"
     },
@@ -1052,6 +1238,8 @@
       "rows_sent": 80,
       "source_file": "fixtures/logs/mysql_slow_02.log",
       "sql": "SELECT c.id, c.name, COUNT(o.id) AS order_count\nFROM customers c\nJOIN orders o ON o.customer_id = c.id\nWHERE lower(c.region) = 'east'\nGROUP BY c.id, c.name\nORDER BY order_count DESC\nLIMIT 100;",
+      "structural_fingerprint": "12de78d9d4b4e503",
+      "structural_sql": "SELECT COUNT ( orders . id ) , customers . id , customers . name FROM customers JOIN orders ON orders . customer_id = customers . id WHERE LOWER ( customers . region ) = ? GROUP BY customers . id , customers . name ORDER BY order_count DESC LIMIT ? ;",
       "timestamp": "2026-01-10T11:06:00Z",
       "user": "svc_app"
     },
@@ -1080,6 +1268,8 @@
       "rows_sent": 80,
       "source_file": "fixtures/logs/mysql_slow_02.log",
       "sql": "SELECT c.id, c.name, COUNT(o.id) AS order_count\nFROM customers c\nJOIN orders o ON o.customer_id = c.id\nWHERE lower(c.region) = 'west'\nGROUP BY c.id, c.name\nORDER BY order_count DESC\nLIMIT 100;",
+      "structural_fingerprint": "12de78d9d4b4e503",
+      "structural_sql": "SELECT COUNT ( orders . id ) , customers . id , customers . name FROM customers JOIN orders ON orders . customer_id = customers . id WHERE LOWER ( customers . region ) = ? GROUP BY customers . id , customers . name ORDER BY order_count DESC LIMIT ? ;",
       "timestamp": "2026-01-10T11:07:00Z",
       "user": "svc_app"
     },
@@ -1108,6 +1298,8 @@
       "rows_sent": 50,
       "source_file": "fixtures/logs/mysql_slow_02.log",
       "sql": "SELECT oi.order_id, SUM(oi.quantity) AS qty\nFROM order_items oi\nJOIN orders o ON o.id = oi.order_id\nWHERE o.created_at >= '2026-01-02'\nGROUP BY oi.order_id\nORDER BY qty DESC\nLIMIT 50;",
+      "structural_fingerprint": "29e91724c8e491cc",
+      "structural_sql": "SELECT SUM ( order_items . quantity ) , order_items . order_id FROM order_items JOIN orders ON orders . id = order_items . order_id WHERE orders . created_at >= ? GROUP BY order_items . order_id ORDER BY qty DESC LIMIT ? ;",
       "timestamp": "2026-01-10T11:10:00Z",
       "user": "svc_app"
     },
@@ -1136,6 +1328,8 @@
       "rows_sent": 50,
       "source_file": "fixtures/logs/mysql_slow_02.log",
       "sql": "SELECT oi.order_id, SUM(oi.quantity) AS qty\nFROM order_items oi\nJOIN orders o ON o.id = oi.order_id\nWHERE o.created_at >= '2026-01-03'\nGROUP BY oi.order_id\nORDER BY qty DESC\nLIMIT 50;",
+      "structural_fingerprint": "29e91724c8e491cc",
+      "structural_sql": "SELECT SUM ( order_items . quantity ) , order_items . order_id FROM order_items JOIN orders ON orders . id = order_items . order_id WHERE orders . created_at >= ? GROUP BY order_items . order_id ORDER BY qty DESC LIMIT ? ;",
       "timestamp": "2026-01-10T11:11:00Z",
       "user": "svc_app"
     },
@@ -1164,6 +1358,8 @@
       "rows_sent": 20,
       "source_file": "fixtures/logs/pg_log_01.log",
       "sql": "SELECT * FROM orders WHERE customer_id = 501   AND status = 'PAID' ORDER BY created_at DESC LIMIT 20;",
+      "structural_fingerprint": "9361ac1923862e01",
+      "structural_sql": "SELECT * FROM orders WHERE customer_id = ? AND status = ? ORDER BY created_at DESC LIMIT ? ;",
       "timestamp": "2026-01-10T12:00:00Z",
       "user": "svc_report"
     },
@@ -1192,6 +1388,8 @@
       "rows_sent": 20,
       "source_file": "fixtures/logs/pg_log_01.log",
       "sql": "SELECT * FROM orders WHERE customer_id = 502   AND status = 'NEW' ORDER BY created_at DESC LIMIT 20;",
+      "structural_fingerprint": "9361ac1923862e01",
+      "structural_sql": "SELECT * FROM orders WHERE customer_id = ? AND status = ? ORDER BY created_at DESC LIMIT ? ;",
       "timestamp": "2026-01-10T12:01:00Z",
       "user": "svc_report"
     },
@@ -1220,6 +1418,8 @@
       "rows_sent": 80,
       "source_file": "fixtures/logs/pg_log_01.log",
       "sql": "SELECT c.id, c.name, COUNT(o.id) AS order_count FROM customers c JOIN orders o ON o.customer_id = c.id WHERE lower(c.region) = 'central' GROUP BY c.id, c.name ORDER BY order_count DESC LIMIT 100;",
+      "structural_fingerprint": "12de78d9d4b4e503",
+      "structural_sql": "SELECT COUNT ( orders . id ) , customers . id , customers . name FROM customers JOIN orders ON orders . customer_id = customers . id WHERE LOWER ( customers . region ) = ? GROUP BY customers . id , customers . name ORDER BY order_count DESC LIMIT ? ;",
       "timestamp": "2026-01-10T12:02:00Z",
       "user": "svc_report"
     },
@@ -1248,6 +1448,8 @@
       "rows_sent": 50,
       "source_file": "fixtures/logs/pg_log_01.log",
       "sql": "SELECT oi.order_id, SUM(oi.quantity) AS qty FROM order_items oi JOIN orders o ON o.id = oi.order_id WHERE o.created_at >= '2026-01-09' GROUP BY oi.order_id ORDER BY qty DESC LIMIT 50;",
+      "structural_fingerprint": "29e91724c8e491cc",
+      "structural_sql": "SELECT SUM ( order_items . quantity ) , order_items . order_id FROM order_items JOIN orders ON orders . id = order_items . order_id WHERE orders . created_at >= ? GROUP BY order_items . order_id ORDER BY qty DESC LIMIT ? ;",
       "timestamp": "2026-01-10T12:03:00Z",
       "user": "svc_report"
     },
@@ -1276,14 +1478,33 @@
       "rows_sent": 1,
       "source_file": "fixtures/logs/malformed_lines.log",
       "sql": "SELECT id, name FROM products WHERE id = 7;",
+      "structural_fingerprint": "22ee208a6ef6c9e4",
+      "structural_sql": "SELECT id , name FROM products WHERE id = ? ;",
       "timestamp": "2026-01-10T13:00:00Z",
       "user": "svc_app"
     }
   ],
   "report_type": "slowquery-autopsy-batch",
-  "schema_version": 1,
+  "schema_version": 2,
   "summary": {
     "batch_id": "batch-bf0f825b4eb270c13682",
+    "clustering": {
+      "child_fingerprint": "sha256(normalized_text + ordered_tokens)[:16]",
+      "parent_absorbs": [
+        "table_aliases",
+        "select_list_order",
+        "group_by_order",
+        "where_and_order",
+        "case_writing_style"
+      ],
+      "parent_fingerprint": "sha256('structural-equivalence-v1' + canonical_structural_tokens)[:16]",
+      "parent_preserves": [
+        "where_filter_columns",
+        "table_names",
+        "join_predicates"
+      ],
+      "strategy": "structural_parent_text_child"
+    },
     "counts": {
       "analyzed_queries": 18,
       "clusters": 4,
@@ -1291,6 +1512,7 @@
       "findings": 14,
       "high_findings": 9,
       "input_files": 4,
+      "parent_clusters": 4,
       "plan_nodes": 8,
       "plans": 5,
       "queries": 20,

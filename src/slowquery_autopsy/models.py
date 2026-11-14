@@ -43,6 +43,9 @@ class SlowQuery:
     normalized_sql: str = ""
     tokens: list[str] = field(default_factory=list)
     fingerprint: str = ""
+    structural_sql: str = ""
+    structural_tokens: list[str] = field(default_factory=list)
+    structural_fingerprint: str = ""
     cluster_id: str = ""
     excluded: bool = False
     exclusion_reason: str = ""
@@ -73,6 +76,8 @@ class SlowQuery:
             "sql": self.sql,
             "normalized_sql": self.normalized_sql,
             "fingerprint": self.fingerprint,
+            "structural_fingerprint": self.structural_fingerprint,
+            "structural_sql": self.structural_sql,
             "cluster_id": self.cluster_id,
             "excluded": self.excluded,
             "exclusion_reason": self.exclusion_reason,
@@ -100,6 +105,7 @@ class Cluster:
     projected_ms_per_1k_calls: float
     query_ids: list[str] = field(default_factory=list)
     cost: dict[str, Any] = field(default_factory=dict)
+    structural_fingerprint: str = ""
 
     @property
     def cluster_id(self) -> str:
@@ -109,9 +115,68 @@ class Cluster:
         return {
             "cluster_id": self.cluster_id,
             "fingerprint": self.fingerprint,
+            "structural_fingerprint": self.structural_fingerprint,
             "sample_sql": self.sample_sql,
             "normalized_sql": self.normalized_sql,
             "query_count": self.query_count,
+            "total_duration_ms": round(self.total_duration_ms, 3),
+            "avg_duration_ms": round(self.avg_duration_ms, 3),
+            "min_duration_ms": round(self.min_duration_ms, 3),
+            "max_duration_ms": round(self.max_duration_ms, 3),
+            "p50_duration_ms": round(self.p50_duration_ms, 3),
+            "p95_duration_ms": round(self.p95_duration_ms, 3),
+            "total_rows_examined": self.total_rows_examined,
+            "total_rows_sent": self.total_rows_sent,
+            "amplification": round(self.amplification, 3),
+            "lock_ratio": round(self.lock_ratio, 6),
+            "duration_share": round(self.duration_share, 6),
+            "projected_ms_per_1k_calls": round(self.projected_ms_per_1k_calls, 3),
+            "query_ids": self.query_ids,
+            "cost": self.cost,
+        }
+
+
+@dataclass
+class ParentCluster:
+    """Structural-equivalence cluster grouping one or more text-fingerprint
+    child clusters. All statistics are recomputed from the underlying queries,
+    never summed from child aggregates."""
+
+    structural_fingerprint: str
+    sample_sql: str
+    structural_sql: str
+    query_count: int
+    total_duration_ms: float
+    avg_duration_ms: float
+    min_duration_ms: float
+    max_duration_ms: float
+    p50_duration_ms: float
+    p95_duration_ms: float
+    total_rows_examined: int
+    total_rows_sent: int
+    amplification: float
+    lock_ratio: float
+    duration_share: float
+    projected_ms_per_1k_calls: float
+    query_ids: list[str] = field(default_factory=list)
+    child_fingerprints: list[str] = field(default_factory=list)
+    child_query_counts: dict[str, int] = field(default_factory=dict)
+    cost: dict[str, Any] = field(default_factory=dict)
+
+    @property
+    def cluster_id(self) -> str:
+        return self.structural_fingerprint
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "cluster_id": self.cluster_id,
+            "structural_fingerprint": self.structural_fingerprint,
+            "sample_sql": self.sample_sql,
+            "structural_sql": self.structural_sql,
+            "query_count": self.query_count,
+            "child_cluster_count": len(self.child_fingerprints),
+            "child_fingerprints": self.child_fingerprints,
+            "child_query_counts": self.child_query_counts,
             "total_duration_ms": round(self.total_duration_ms, 3),
             "avg_duration_ms": round(self.avg_duration_ms, 3),
             "min_duration_ms": round(self.min_duration_ms, 3),
@@ -263,6 +328,7 @@ class AnalysisResult:
     excluded: list[dict[str, Any]]
     summary: dict[str, Any]
     reports: dict[str, str] = field(default_factory=dict)
+    parent_clusters: list[ParentCluster] = field(default_factory=list)
 
     def finding_counts(self) -> dict[str, int]:
         counts = {level: 0 for level in SEVERITY_ORDER}

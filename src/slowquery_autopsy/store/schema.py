@@ -1,6 +1,6 @@
 """SQLite ledger schema DDL."""
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS schema_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS batches (
@@ -20,9 +20,24 @@ CREATE TABLE IF NOT EXISTS slow_queries (
   lock_time_ms REAL NOT NULL, rows_sent INTEGER NOT NULL, rows_examined INTEGER NOT NULL,
   user_name TEXT NOT NULL, client TEXT NOT NULL, database_name TEXT NOT NULL,
   sql_text TEXT NOT NULL, normalized_sql TEXT NOT NULL, fingerprint TEXT NOT NULL,
-  cluster_id TEXT NOT NULL, log_format TEXT NOT NULL, excluded INTEGER NOT NULL,
+  structural_fingerprint TEXT NOT NULL DEFAULT '', cluster_id TEXT NOT NULL,
+  log_format TEXT NOT NULL, excluded INTEGER NOT NULL,
   exclusion_reason TEXT NOT NULL, cost_json TEXT NOT NULL,
   PRIMARY KEY (batch_id, query_id), FOREIGN KEY (batch_id) REFERENCES batches(batch_id)
+);
+CREATE TABLE IF NOT EXISTS parent_clusters (
+  batch_id TEXT NOT NULL, structural_fingerprint TEXT NOT NULL, sample_sql TEXT NOT NULL,
+  structural_sql TEXT NOT NULL, query_count INTEGER NOT NULL,
+  child_cluster_count INTEGER NOT NULL, child_fingerprints_json TEXT NOT NULL,
+  child_query_counts_json TEXT NOT NULL,
+  total_duration_ms REAL NOT NULL, avg_duration_ms REAL NOT NULL,
+  min_duration_ms REAL NOT NULL, max_duration_ms REAL NOT NULL,
+  p50_duration_ms REAL NOT NULL, p95_duration_ms REAL NOT NULL,
+  total_rows_examined INTEGER NOT NULL, total_rows_sent INTEGER NOT NULL,
+  amplification REAL NOT NULL, lock_ratio REAL NOT NULL, duration_share REAL NOT NULL,
+  projected_ms_per_1k_calls REAL NOT NULL, cost_json TEXT NOT NULL,
+  PRIMARY KEY (batch_id, structural_fingerprint),
+  FOREIGN KEY (batch_id) REFERENCES batches(batch_id)
 );
 CREATE TABLE IF NOT EXISTS clusters (
   batch_id TEXT NOT NULL, cluster_id TEXT NOT NULL, sample_sql TEXT NOT NULL,
@@ -33,6 +48,7 @@ CREATE TABLE IF NOT EXISTS clusters (
   total_rows_examined INTEGER NOT NULL, total_rows_sent INTEGER NOT NULL,
   amplification REAL NOT NULL, lock_ratio REAL NOT NULL, duration_share REAL NOT NULL,
   projected_ms_per_1k_calls REAL NOT NULL, cost_json TEXT NOT NULL,
+  structural_fingerprint TEXT NOT NULL DEFAULT '',
   PRIMARY KEY (batch_id, cluster_id), FOREIGN KEY (batch_id) REFERENCES batches(batch_id)
 );
 CREATE TABLE IF NOT EXISTS plans (

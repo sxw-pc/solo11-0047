@@ -62,6 +62,7 @@ def render_index(result: AnalysisResult) -> str:
         config_hash=result.config_hash,
         input_hash=result.input_hash,
         summary=result.summary,
+        parent_clusters=result.parent_clusters,
         clusters=result.clusters,
         findings=result.findings,
         unparsed=result.unparsed,

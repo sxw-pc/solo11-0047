@@ -7,8 +7,13 @@ from pathlib import Path
 from typing import Any
 
 from .analysis.cost import attach_query_costs, evaluate_cost
-from .analysis.fingerprint import build_clusters, fingerprint_id
-from .analysis.normalize import normalize_sql
+from .analysis.fingerprint import (
+    build_clusters,
+    build_parent_clusters,
+    fingerprint_id,
+    structural_fingerprint_id,
+)
+from .analysis.normalize import normalize_sql, structural_signature
 from .analysis.plan_audit import audit_plans
 from .analysis.risk_rules import build_findings, rule_catalog
 from .config import AppConfig
@@ -35,11 +40,18 @@ def attach_fingerprints(queries: list[SlowQuery], config: AppConfig) -> None:
         query.normalized_sql = normalized.text
         query.tokens = normalized.tokens
         query.fingerprint = fingerprint_id(normalized.text, normalized.tokens)
-        query.excluded, query.exclusion_reason = _exclusion(query.sql, config.excluded_prefixes)
-        query.cluster_id = "" if query.excluded else query.fingerprint
         query.query_id = stable_id(
             "q", query.source_file, query.line_no, query.fingerprint
         )
+        query.excluded, query.exclusion_reason = _exclusion(query.sql, config.excluded_prefixes)
+        if query.excluded:
+            query.cluster_id = ""
+            continue
+        structural_text, structural_tokens = structural_signature(normalized.tokens)
+        query.structural_sql = structural_text
+        query.structural_tokens = structural_tokens
+        query.structural_fingerprint = structural_fingerprint_id(structural_tokens)
+        query.cluster_id = query.fingerprint
 
 
 def _input_hash(config: AppConfig) -> str:
@@ -88,6 +100,7 @@ def build_result(config: AppConfig, created_at: str | None = None) -> AnalysisRe
     attach_fingerprints(parsed.queries, config)
     attach_query_costs(parsed.queries)
     clusters = build_clusters(parsed.queries)
+    parent_clusters = build_parent_clusters(parsed.queries)
     schema = load_schema(config.schema_path)
     plans = load_plans(config, {cluster.fingerprint for cluster in clusters})
     candidates = evaluate_cost(clusters, config.cost_rules)
@@ -116,6 +129,7 @@ def build_result(config: AppConfig, created_at: str | None = None) -> AnalysisRe
             "analyzed_queries": len(included),
             "excluded_queries": len(excluded),
             "clusters": len(clusters),
+            "parent_clusters": len(parent_clusters),
             "plans": len(plans),
             "plan_nodes": sum(plan.node_count for plan in plans),
             "unassociated_plans": len(unassociated),
@@ -136,6 +150,14 @@ def build_result(config: AppConfig, created_at: str | None = None) -> AnalysisRe
             rule.get("id") for rule in config.fingerprint_rules.get("rules", [])
             if rule.get("enabled", True)
         ],
+        "clustering": {
+            "strategy": "structural_parent_text_child",
+            "child_fingerprint": "sha256(normalized_text + ordered_tokens)[:16]",
+            "parent_fingerprint": "sha256('structural-equivalence-v1' + canonical_structural_tokens)[:16]",
+            "parent_absorbs": ["table_aliases", "select_list_order", "group_by_order",
+                               "where_and_order", "case_writing_style"],
+            "parent_preserves": ["where_filter_columns", "table_names", "join_predicates"],
+        },
         "quantile_method": config.quantile_method,
         "rule_catalog": rule_catalog(config.cost_rules, config.plan_rules.get("rules", []),
                                      config.risk_overrides),
@@ -161,6 +183,7 @@ def build_result(config: AppConfig, created_at: str | None = None) -> AnalysisRe
         file_stats=parsed.file_stats,
         excluded=excluded,
         summary=summary,
+        parent_clusters=parent_clusters,
     )
 
 

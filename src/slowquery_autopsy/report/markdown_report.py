@@ -14,7 +14,10 @@ def _cell(value: Any) -> str:
 
 
 def _code(value: str) -> str:
-    return f"`{value.replace('`', '\\`')}`" if value else "—"
+    if not value:
+        return "—"
+    escaped = value.replace("`", "\\`")
+    return f"`{escaped}`"
 
 
 def _severity_counts(result: AnalysisResult) -> str:
@@ -43,19 +46,22 @@ def _overview(result: AnalysisResult) -> list[str]:
 
 def _clusters(result: AnalysisResult, limit: int) -> list[str]:
     lines = ["## 2. TOP 指纹簇", "", "按总耗时降序，总耗时相同按指纹升序。", "",
-             "| # | 簇 ID | 次数 | 总耗时 ms | 平均 ms | P50 ms | P95 ms | 扫描/返回 | 总扫描行 | 耗时占比 |",
-             "|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|"]
+             "| # | 簇 ID | 结构父簇 | 次数 | 总耗时 ms | 平均 ms | P50 ms | P95 ms | 扫描/返回 | 总扫描行 | 耗时占比 |",
+             "|---:|---|---|---:|---:|---:|---:|---:|---:|---:|---:|"]
     for index, cluster in enumerate(result.clusters[:limit], start=1):
         lines.append(
-            f"| {index} | `{cluster.fingerprint}` | {cluster.query_count} | "
+            f"| {index} | `{cluster.fingerprint}` | `{cluster.structural_fingerprint or '—'}` | "
+            f"{cluster.query_count} | "
             f"{cluster.total_duration_ms:.3f} | {cluster.avg_duration_ms:.3f} | "
             f"{cluster.p50_duration_ms:.3f} | {cluster.p95_duration_ms:.3f} | "
             f"{cluster.amplification:.2f}x | {cluster.total_rows_examined} | "
             f"{cluster.duration_share:.2%} |"
         )
     if not result.clusters:
-        lines.append("| — | 无 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0% |")
-    lines.extend(["", "### 高扫描放大清单（>100x）", ""])
+        lines.append("| — | 无 | — | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0% |")
+    lines.append("")
+    lines.extend(_parent_clusters(result, limit))
+    lines.extend(["### 高扫描放大清单（>100x）", ""])
     amplified = [cluster for cluster in result.clusters if cluster.amplification > 100]
     if amplified:
         lines.extend(["| 簇 ID | 次数 | 放大倍数 | 样本 SQL |", "|---|---:|---:|---|"])
@@ -66,6 +72,29 @@ def _clusters(result: AnalysisResult, limit: int) -> list[str]:
             )
     else:
         lines.append("无超过 100x 的簇。")
+    lines.append("")
+    return lines
+
+
+def _parent_clusters(result: AnalysisResult, limit: int) -> list[str]:
+    lines = [
+        "### 结构父簇（结构等价归并）",
+        "",
+        "父簇吸收表别名、列顺序与 CASE 写法差异，但保留 WHERE 过滤列；统计直接由成员查询聚合，不做子簇相加。",
+        "",
+        "| # | 父簇 ID | 子簇数 | 次数 | 总耗时 ms | 平均 ms | P95 ms | 扫描/返回 | 耗时占比 | 每千次调用 ms |",
+        "|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|",
+    ]
+    for index, parent in enumerate(result.parent_clusters[:limit], start=1):
+        lines.append(
+            f"| {index} | `{parent.structural_fingerprint}` | "
+            f"{len(parent.child_fingerprints)} | {parent.query_count} | "
+            f"{parent.total_duration_ms:.3f} | {parent.avg_duration_ms:.3f} | "
+            f"{parent.p95_duration_ms:.3f} | {parent.amplification:.2f}x | "
+            f"{parent.duration_share:.2%} | {parent.projected_ms_per_1k_calls:.3f} |"
+        )
+    if not result.parent_clusters:
+        lines.append("| — | 无 | 0 | 0 | 0 | 0 | 0 | 0 | 0% | 0 |")
     lines.append("")
     return lines
 
@@ -163,7 +192,9 @@ def _appendix(result: AnalysisResult) -> list[str]:
     lines.extend([
         "", "## 9. 口径与边界", "",
         f"- 归一化规则（按顺序）：{', '.join(result.summary['normalization_rules'])}",
-        "- 指纹 = SHA-256(归一化文本 + 有序结构 token 序列) 前 16 位十六进制。",
+        "- 子簇指纹 = SHA-256(归一化文本 + 有序结构 token 序列) 前 16 位十六进制。",
+        "- 父簇指纹 = SHA-256('structural-equivalence-v1' + 规范化结构 token) 前 16 位；吸收别名、列顺序与 CASE 写法，保留 WHERE 过滤列。",
+        "- 父簇统计由成员查询直接聚合（含 nearest-rank 分位数与扫描放大），不从子簇相加；父子两层耗时占比各自归一到同口径总耗时。",
         "- 分位数使用 nearest-rank，不做插值；同一输入与配置产生相同的正文。",
         "- 扫描放大倍数与锁等待占比按簇内总量计算；每千次调用耗时为平均耗时 × 1000。",
         "- 本报告只做静态文本分析，不连接数据库、不执行 SQL、不生成改写版本。",

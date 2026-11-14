@@ -49,7 +49,8 @@ section { margin-bottom:8px; }</style>
     <div class="metrics">
       <div class="metric"><strong>20</strong><span>慢查记录</span></div>
       <div class="metric"><strong>18</strong><span>参与聚类</span></div>
-      <div class="metric"><strong>4</strong><span>指纹簇</span></div>
+      <div class="metric"><strong>4</strong><span>指纹簇（子）</span></div>
+      <div class="metric"><strong>4</strong><span>结构父簇</span></div>
       <div class="metric"><strong>14</strong><span>诊断发现</span></div>
       <div class="metric"><strong>9</strong><span>高危及以上</span></div>
       <div class="metric"><strong>3</strong><span>未解析行</span></div>
@@ -58,13 +59,69 @@ section { margin-bottom:8px; }</style>
   </section>
 
   <section>
+    <h2>结构父簇</h2>
+    <p class="muted">父簇吸收别名、列顺序与 CASE 写法差异，保留 WHERE 过滤列；统计由成员查询直接聚合。</p>
+    <table>
+      <thead><tr><th>父簇</th><th>子簇数</th><th>次数</th><th>总耗时 ms</th><th>P95 ms</th><th>放大倍数</th><th>占比</th><th>结构（规范化）</th></tr></thead>
+      <tbody>
+      
+        <tr>
+          <td><code>9361ac1923862e01</code></td>
+          <td>1</td>
+          <td>10</td>
+          <td>27050.000</td>
+          <td>3200.000</td>
+          <td>11275.00x</td>
+          <td>54.54%</td>
+          <td><code>SELECT * FROM orders WHERE customer_id = ? AND status = ? ORDER BY created_at DESC LIMIT ? ;</code></td>
+        </tr>
+      
+        <tr>
+          <td><code>29e91724c8e491cc</code></td>
+          <td>1</td>
+          <td>3</td>
+          <td>13200.000</td>
+          <td>4800.000</td>
+          <td>18200.00x</td>
+          <td>26.61%</td>
+          <td><code>SELECT SUM ( order_items . quantity ) , order_items . order_id FROM order_items JOIN orders ON orders . id = order_items</code></td>
+        </tr>
+      
+        <tr>
+          <td><code>12de78d9d4b4e503</code></td>
+          <td>1</td>
+          <td>4</td>
+          <td>8450.000</td>
+          <td>2400.000</td>
+          <td>1640.62x</td>
+          <td>17.04%</td>
+          <td><code>SELECT COUNT ( orders . id ) , customers . id , customers . name FROM customers JOIN orders ON orders . customer_id = cu</code></td>
+        </tr>
+      
+        <tr>
+          <td><code>22ee208a6ef6c9e4</code></td>
+          <td>1</td>
+          <td>1</td>
+          <td>900.000</td>
+          <td>900.000</td>
+          <td>100.00x</td>
+          <td>1.81%</td>
+          <td><code>SELECT id , name FROM products WHERE id = ? ;</code></td>
+        </tr>
+      
+      </tbody>
+    </table>
+  </section>
+
+  <section>
     <h2>指纹簇</h2>
     <table>
-      <thead><tr><th>簇</th><th>次数</th><th>总耗时 ms</th><th>P95 ms</th><th>放大倍数</th><th>占比</th><th>样本 SQL</th></tr></thead>
+      <thead><tr><th>簇</th><th>结构父簇</th><th>次数</th><th>总耗时 ms</th><th>P95 ms</th><th>放大倍数</th><th>占比</th><th>样本 SQL</th></tr></thead>
       <tbody>
       
         <tr>
           <td><a href="cluster-b6b972a308926333.html"><code>b6b972a308926333</code></a></td>
+          <td><code>9361ac1923862e01</code></td>
           <td>10</td>
           <td>27050.000</td>
           <td>3200.000</td>
@@ -80,6 +137,7 @@ LIMIT 20;</code></td>
       
         <tr>
           <td><a href="cluster-af4b9db7cdc9c045.html"><code>af4b9db7cdc9c045</code></a></td>
+          <td><code>29e91724c8e491cc</code></td>
           <td>3</td>
           <td>13200.000</td>
           <td>4800.000</td>
@@ -93,6 +151,7 @@ WHERE o.created_at &gt;</code></td>
       
         <tr>
           <td><a href="cluster-c34301cef6431f5f.html"><code>c34301cef6431f5f</code></a></td>
+          <td><code>12de78d9d4b4e503</code></td>
           <td>4</td>
           <td>8450.000</td>
           <td>2400.000</td>
@@ -106,6 +165,7 @@ WHERE lower(c.reg</code></td>
       
         <tr>
           <td><a href="cluster-0be4b6b31b5181f8.html"><code>0be4b6b31b5181f8</code></a></td>
+          <td><code>22ee208a6ef6c9e4</code></td>
           <td>1</td>
           <td>900.000</td>
           <td>900.000</td>

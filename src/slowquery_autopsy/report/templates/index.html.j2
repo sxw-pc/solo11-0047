@@ -18,7 +18,8 @@
     <div class="metrics">
       <div class="metric"><strong>{{ summary.counts.queries }}</strong><span>慢查记录</span></div>
       <div class="metric"><strong>{{ summary.counts.analyzed_queries }}</strong><span>参与聚类</span></div>
-      <div class="metric"><strong>{{ summary.counts.clusters }}</strong><span>指纹簇</span></div>
+      <div class="metric"><strong>{{ summary.counts.clusters }}</strong><span>指纹簇（子）</span></div>
+      <div class="metric"><strong>{{ summary.counts.parent_clusters }}</strong><span>结构父簇</span></div>
       <div class="metric"><strong>{{ summary.counts.findings }}</strong><span>诊断发现</span></div>
       <div class="metric"><strong>{{ summary.counts.high_findings }}</strong><span>高危及以上</span></div>
       <div class="metric"><strong>{{ summary.counts.unparsed_lines }}</strong><span>未解析行</span></div>
@@ -27,13 +28,38 @@
   </section>
 
   <section>
+    <h2>结构父簇</h2>
+    <p class="muted">父簇吸收别名、列顺序与 CASE 写法差异，保留 WHERE 过滤列；统计由成员查询直接聚合。</p>
+    <table>
+      <thead><tr><th>父簇</th><th>子簇数</th><th>次数</th><th>总耗时 ms</th><th>P95 ms</th><th>放大倍数</th><th>占比</th><th>结构（规范化）</th></tr></thead>
+      <tbody>
+      {% for parent in parent_clusters %}
+        <tr>
+          <td><code>{{ parent.structural_fingerprint }}</code></td>
+          <td>{{ parent.child_fingerprints|length }}</td>
+          <td>{{ parent.query_count }}</td>
+          <td>{{ "%.3f"|format(parent.total_duration_ms) }}</td>
+          <td>{{ "%.3f"|format(parent.p95_duration_ms) }}</td>
+          <td>{{ "%.2f"|format(parent.amplification) }}x</td>
+          <td>{{ "%.2f"|format(parent.duration_share * 100) }}%</td>
+          <td><code>{{ parent.structural_sql[:120] }}</code></td>
+        </tr>
+      {% else %}
+        <tr><td colspan="8">无结构父簇。</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </section>
+
+  <section>
     <h2>指纹簇</h2>
     <table>
-      <thead><tr><th>簇</th><th>次数</th><th>总耗时 ms</th><th>P95 ms</th><th>放大倍数</th><th>占比</th><th>样本 SQL</th></tr></thead>
+      <thead><tr><th>簇</th><th>结构父簇</th><th>次数</th><th>总耗时 ms</th><th>P95 ms</th><th>放大倍数</th><th>占比</th><th>样本 SQL</th></tr></thead>
       <tbody>
       {% for cluster in clusters %}
         <tr>
           <td><a href="cluster-{{ cluster.fingerprint }}.html"><code>{{ cluster.fingerprint }}</code></a></td>
+          <td><code>{{ cluster.structural_fingerprint or "—" }}</code></td>
           <td>{{ cluster.query_count }}</td>
           <td>{{ "%.3f"|format(cluster.total_duration_ms) }}</td>
           <td>{{ "%.3f"|format(cluster.p95_duration_ms) }}</td>
@@ -42,7 +68,7 @@
           <td><code>{{ cluster.sample_sql[:120] }}</code></td>
         </tr>
       {% else %}
-        <tr><td colspan="7">无聚类结果。</td></tr>
+        <tr><td colspan="8">无聚类结果。</td></tr>
       {% endfor %}
       </tbody>
     </table>

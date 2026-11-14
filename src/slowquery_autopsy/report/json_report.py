@@ -24,7 +24,7 @@ def _plan_payload(result: AnalysisResult) -> list[dict[str, Any]]:
 
 def build_json_report(result: AnalysisResult) -> dict[str, Any]:
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "report_type": "slowquery-autopsy-batch",
         "metadata": {
             "batch_id": result.batch_id,
@@ -34,6 +34,7 @@ def build_json_report(result: AnalysisResult) -> dict[str, Any]:
         },
         "summary": result.summary,
         "file_stats": [stat.as_dict() for stat in result.file_stats],
+        "parent_clusters": [cluster.as_dict() for cluster in result.parent_clusters],
         "clusters": [cluster.as_dict() for cluster in result.clusters],
         "queries": _query_payload(result),
         "plans": _plan_payload(result),

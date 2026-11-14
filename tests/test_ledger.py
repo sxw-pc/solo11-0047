@@ -36,6 +36,28 @@ def test_read_only_queries_and_write_rejection(ledger_result):
             ledger.save_batch(result)
 
 
+def test_parent_clusters_are_persisted_with_child_links(ledger_result):
+    config, result = ledger_result
+    with open_readonly(config.ledger_path) as ledger:
+        parents = ledger.list_parent_clusters(result.batch_id)
+        assert len(parents) == len(result.parent_clusters)
+        persisted = {p["structural_fingerprint"]: p for p in parents}
+        for parent in result.parent_clusters:
+            row = persisted[parent.structural_fingerprint]
+            assert row["query_count"] == parent.query_count
+            assert row["child_fingerprints"] == parent.child_fingerprints
+            assert row["child_query_counts"] == parent.child_query_counts
+            assert row["child_cluster_count"] == len(parent.child_fingerprints)
+            assert row["structural_sql"] == parent.structural_sql
+        # Child rows carry the parent structural id for upward navigation.
+        for cluster in ledger.list_clusters(result.batch_id):
+            assert cluster["structural_fingerprint"] in persisted
+        # Persisted parent totals match the in-memory aggregate exactly.
+        assert round(sum(p["total_duration_ms"] for p in parents), 6) == round(
+            sum(c.total_duration_ms for c in result.clusters), 6
+        )
+
+
 def test_plan_nodes_findings_and_relationships(ledger_result):
     config, result = ledger_result
     with open_readonly(config.ledger_path) as ledger:

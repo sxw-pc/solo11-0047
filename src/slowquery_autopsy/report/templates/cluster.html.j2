@@ -10,7 +10,7 @@
 <header>
   <p class="eyebrow"><a href="index.html">← 返回批次索引</a></p>
   <h1>指纹簇 <code>{{ cluster.fingerprint }}</code></h1>
-  <p class="muted">出现 {{ cluster.query_count }} 次 · 总耗时 {{ "%.3f"|format(cluster.total_duration_ms) }} ms · 扫描放大 {{ "%.2f"|format(cluster.amplification) }}x</p>
+  <p class="muted">结构父簇 <code>{{ cluster.structural_fingerprint or "—" }}</code> · 出现 {{ cluster.query_count }} 次 · 总耗时 {{ "%.3f"|format(cluster.total_duration_ms) }} ms · 扫描放大 {{ "%.2f"|format(cluster.amplification) }}x</p>
 </header>
 <main>
   <section>
