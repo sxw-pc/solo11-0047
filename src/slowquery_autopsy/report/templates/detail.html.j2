@@ -48,12 +48,12 @@
   <section>
     <h2>关联发现</h2>
     <table>
-      <thead><tr><th>级别</th><th>规则</th><th>说明</th></tr></thead>
+      <thead><tr><th>生效级别</th><th>原始级别</th><th>规则</th><th>说明</th></tr></thead>
       <tbody>
       {% for finding in findings %}
-        <tr><td><span class="sev sev-{{ finding.severity }}">{{ finding.severity }}</span></td><td><code>{{ finding.rule_id }}</code></td><td>{{ finding.description }}</td></tr>
+        <tr><td><span class="sev sev-{{ finding.effective_severity }}">{{ finding.effective_severity }}</span>{% if finding.suppressed %} <span class="muted">已抑制</span>{% endif %}</td><td>{{ finding.original_severity }}</td><td><code>{{ finding.rule_id }}</code></td><td>{{ finding.description }}</td></tr>
       {% else %}
-        <tr><td colspan="3">无关联发现。</td></tr>
+        <tr><td colspan="4">无关联发现。</td></tr>
       {% endfor %}
       </tbody>
     </table>

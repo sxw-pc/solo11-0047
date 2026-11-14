@@ -22,9 +22,16 @@ def _severity_counts(result: AnalysisResult) -> str:
     return " · ".join(f"{level}={counts.get(level, 0)}" for level in counts)
 
 
+def _effective_severity_counts(result: AnalysisResult) -> str:
+    counts = result.effective_finding_counts()
+    return " · ".join(f"{level}={counts.get(level, 0)}" for level in counts)
+
+
 def _overview(result: AnalysisResult) -> list[str]:
     counts = result.summary["counts"]
     durations = result.summary["durations"]
+    baseline = result.summary.get("finding_baselines", {})
+    suppressed = counts.get("suppressed_findings", 0)
     lines = [
         "## 1. 概览", "",
         f"- 批次 ID：`{result.batch_id}`",
@@ -32,10 +39,12 @@ def _overview(result: AnalysisResult) -> list[str]:
         f"- 输入哈希：`{result.input_hash[:16]}`",
         f"- 输入文件：{counts['input_files']}；解析慢查：{counts['queries']}；参与聚类：{counts['analyzed_queries']}；排除：{counts['excluded_queries']}",
         f"- 指纹簇：{counts['clusters']}；计划：{counts['plans']}；未关联计划：{counts['unassociated_plans']}",
-        f"- 发现：{counts['findings']}；高危及以上：{counts['high_findings']}；未解析行：{counts['unparsed_lines']}",
-        f"- 严重级别：{_severity_counts(result)}",
+        f"- 发现：{counts['findings']}；生效高危及以上：{counts['high_findings']}；基线抑制：{suppressed}；未解析行：{counts['unparsed_lines']}",
+        f"- 原始严重级别分布：{_severity_counts(result)}",
+        f"- 生效严重级别分布：{_effective_severity_counts(result)}（被抑制发现按 info 计）",
+        f"- 基线规则：{baseline.get('count', 0)} 条",
         f"- 全部慢查总耗时：{durations['all_queries_total_ms']:.3f} ms；参与分析总耗时：{durations['analyzed_total_ms']:.3f} ms",
-        f"- 分位数口径：nearest-rank（`ceil(q*n)`）；放大倍数 = 扫描行总数 / max(返回行总数, 1)",
+        "- 分位数口径：nearest-rank（`ceil(q*n)`）；放大倍数 = 扫描行总数 / max(返回行总数, 1)",
         "",
     ]
     return lines
@@ -70,46 +79,86 @@ def _clusters(result: AnalysisResult, limit: int) -> list[str]:
     return lines
 
 
+def _severity_label(finding) -> str:
+    if finding.suppressed:
+        return f"info（原始 {finding.original_severity}，已抑制）"
+    return finding.original_severity
+
+
 def _plan_and_findings(result: AnalysisResult) -> list[str]:
     lines = ["## 3. 计划审计发现", "",
-             "| 级别 | 规则 | 计划 | 节点 | 表 | 描述 |",
-             "|---|---|---|---|---|---|"]
+             "| 生效级别 | 原始级别 | 规则 | 计划 | 节点 | 表 | 描述 |",
+             "|---|---|---|---|---|---|---|"]
     plan_findings = [finding for finding in result.findings if finding.category == "plan"]
     for finding in plan_findings:
         evidence = finding.evidence
         lines.append(
-            f"| {finding.severity} | `{finding.rule_id}` | {_cell(finding.plan_file)} | "
-            f"`{finding.node_path}` | {_cell(evidence.get('table', '—'))} | {_cell(finding.description)} |"
+            f"| {finding.effective_severity} | {_severity_label(finding)} | `{finding.rule_id}` | "
+            f"{_cell(finding.plan_file)} | `{finding.node_path}` | "
+            f"{_cell(evidence.get('table', '—'))} | {_cell(finding.description)} |"
         )
     if not plan_findings:
-        lines.append("| — | 无 | — | — | — | — |")
+        lines.append("| — | — | 无 | — | — | — | — |")
     lines.extend(["", "## 4. 诊断发现明细", ""])
     if not result.findings:
         lines.extend(["未触发任何规则。", ""])
     for finding in result.findings:
-        lines.append(f"### [{finding.severity.upper()}] `{finding.finding_id}` — {finding.title}")
+        lines.append(
+            f"### [{finding.effective_severity.upper()}] `{finding.finding_id}` — {finding.title}"
+        )
         lines.append("")
         lines.append(f"- 类别：{finding.category}；规则：`{finding.rule_id}`；簇：{_code(finding.cluster_id)}")
         lines.append(f"- 计划/节点：{_code(finding.plan_file)} / {_code(finding.node_path)}")
+        if finding.suppressed:
+            lines.append(
+                f"- 基线抑制：原始级别 {finding.original_severity}；生效级别 info；"
+                f"基线 `{finding.baseline_id}`（{finding.suppression_reason}）"
+            )
+        else:
+            lines.append(f"- 严重级别：{finding.original_severity}（未抑制）")
         lines.append(f"- 说明：{finding.description}")
         lines.append(f"- 证据：`{canonical_json(finding.evidence)}`")
         lines.append(f"- 建议：{finding.recommendation}")
         lines.append("")
     lines.extend(["### 规则触发表", "",
-                  "| finding_id | 规则 | 级别 | 类别 | 簇 |", "|---|---|---|---|---|"])
+                  "| finding_id | 规则 | 原始级别 | 生效级别 | 抑制 | 类别 | 簇 |",
+                  "|---|---|---|---|---|---|---|"])
     for finding in result.findings:
         lines.append(
-            f"| `{finding.finding_id}` | `{finding.rule_id}` | {finding.severity} | "
+            f"| `{finding.finding_id}` | `{finding.rule_id}` | {finding.original_severity} | "
+            f"{finding.effective_severity} | {'是' if finding.suppressed else '否'} | "
             f"{finding.category} | {_code(finding.cluster_id)} |"
         )
     if not result.findings:
-        lines.append("| — | — | — | — | — |")
+        lines.append("| — | — | — | — | — | — | — |")
+    lines.append("")
+    return lines
+
+
+def _baseline_section(result: AnalysisResult) -> list[str]:
+    baseline = result.summary.get("finding_baselines", {})
+    items = baseline.get("items", [])
+    lines = ["## 5. 发现基线豁免", "",
+             f"共登记 {len(items)} 条基线；本批次命中 {baseline.get('suppressed_findings', 0)} 条发现。",
+             "",
+             "基线只按规则 ID / SQL 指纹匹配，不记录计划节点行号或路径等易变证据。", ""]
+    if items:
+        lines.extend(["| 基线 ID | 规则 | 指纹 | 来源 | 备注 |",
+                      "|---|---|---|---|---|"])
+        for item in items:
+            lines.append(
+                f"| `{item['baseline_id']}` | {_code(item.get('rule_id', ''))} | "
+                f"{_code(item.get('fingerprint', ''))} | {item.get('origin', '—')} | "
+                f"{_cell(item.get('note', '') or '—')} |"
+            )
+    else:
+        lines.append("未登记任何基线。")
     lines.append("")
     return lines
 
 
 def _exceptions(result: AnalysisResult, preview: int) -> list[str]:
-    lines = ["## 5. 未解析日志", "",
+    lines = ["## 6. 未解析日志", "",
              f"总计 {len(result.unparsed)} 条；以下最多列出 {preview} 条。", ""]
     if result.unparsed:
         lines.extend(["| 文件 | 行号 | 原因 | 原始片段 |", "|---|---:|---|---|"])
@@ -121,7 +170,7 @@ def _exceptions(result: AnalysisResult, preview: int) -> list[str]:
             lines.append(f"| … | … | 其余 {len(result.unparsed) - preview} 条 | … |")
     else:
         lines.append("无。")
-    lines.extend(["", "## 6. 未关联计划", ""])
+    lines.extend(["", "## 7. 未关联计划", ""])
     if result.summary["unassociated_plans"]:
         lines.extend(["| 计划文件 | 指纹 | 节点数 | 原因 |", "|---|---|---:|---|"])
         for item in result.summary["unassociated_plans"]:
@@ -131,7 +180,7 @@ def _exceptions(result: AnalysisResult, preview: int) -> list[str]:
             )
     else:
         lines.append("无。")
-    lines.extend(["", "## 7. 排除的元数据语句", "",
+    lines.extend(["", "## 8. 排除的元数据语句", "",
                   f"排除前缀：{', '.join(result.summary['excluded_prefixes']) or '无'}",
                   f"共 {len(result.excluded)} 条。", ""])
     if result.excluded:
@@ -152,7 +201,7 @@ def _exceptions(result: AnalysisResult, preview: int) -> list[str]:
 
 
 def _appendix(result: AnalysisResult) -> list[str]:
-    lines = ["## 8. 输入文件", "",
+    lines = ["## 9. 输入文件", "",
              "| 文件 | 格式 | 编码 | 行数 | 解析 | 未解析 | 排除 | SHA-256 |",
              "|---|---|---|---:|---:|---:|---:|---|"]
     for stat in result.file_stats:
@@ -161,11 +210,13 @@ def _appendix(result: AnalysisResult) -> list[str]:
             f"{stat.parsed_count} | {stat.unparsed_count} | {stat.excluded_count} | `{stat.sha256[:16]}…` |"
         )
     lines.extend([
-        "", "## 9. 口径与边界", "",
+        "", "## 10. 口径与边界", "",
         f"- 归一化规则（按顺序）：{', '.join(result.summary['normalization_rules'])}",
         "- 指纹 = SHA-256(归一化文本 + 有序结构 token 序列) 前 16 位十六进制。",
         "- 分位数使用 nearest-rank，不做插值；同一输入与配置产生相同的正文。",
         "- 扫描放大倍数与锁等待占比按簇内总量计算；每千次调用耗时为平均耗时 × 1000。",
+        "- 发现基线按规则 ID / SQL 指纹匹配；抑制只改变生效级别（降为 info），原始级别与 finding_id 不变。",
+        "- diff 与 fail_on_severity 均按生效级别判断；原始严重度分布始终单独给出。",
         "- 本报告只做静态文本分析，不连接数据库、不执行 SQL、不生成改写版本。",
         "- 误报提示：合成 fixture 与规则阈值仅用于演示；真实结论需结合业务与执行环境复核。",
         "",
@@ -183,6 +234,7 @@ def render_markdown(result: AnalysisResult) -> str:
     lines.extend(_overview(result))
     lines.extend(_clusters(result, top))
     lines.extend(_plan_and_findings(result))
+    lines.extend(_baseline_section(result))
     lines.extend(_exceptions(result, preview))
     lines.extend(_appendix(result))
     return "\n".join(lines).rstrip() + "\n"

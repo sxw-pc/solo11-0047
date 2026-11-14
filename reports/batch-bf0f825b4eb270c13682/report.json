@@ -131,6 +131,13 @@
       "total_rows_sent": 1
     }
   ],
+  "effective_severity_counts": {
+    "critical": 0,
+    "high": 9,
+    "info": 0,
+    "low": 0,
+    "medium": 5
+  },
   "excluded_statements": [
     {
       "duration_ms": 400.0,
@@ -191,11 +198,14 @@
       "unparsed_count": 2
     }
   ],
+  "finding_baselines": [],
   "findings": [
     {
+      "baseline_id": "",
       "category": "cost",
       "cluster_id": "b6b972a308926333",
       "description": "簇 b6b972a308926333 的扫描/返回放大倍数为 11275.0，超过阈值 100，出现 10 次。",
+      "effective_severity": "high",
       "evidence": {
         "actual": 11275.0,
         "cluster_id": "b6b972a308926333",
@@ -206,17 +216,23 @@
       },
       "finding_id": "fnd-5ee30d7fa393e6cb",
       "node_path": "",
+      "original_severity": "high",
       "plan_file": "",
       "query_id": "",
       "recommendation": "检查过滤字段选择性、索引覆盖与分页方式；扫描放大不等同于错误，需结合业务确认。",
       "rule_id": "COST-AMP-001",
       "severity": "high",
+      "suppressed": false,
+      "suppression_reason": "",
+      "suppression_source": "",
       "title": "扫描放大高风险"
     },
     {
+      "baseline_id": "",
       "category": "cost",
       "cluster_id": "af4b9db7cdc9c045",
       "description": "簇 af4b9db7cdc9c045 平均耗时 4400.0 ms，超过阈值 1000 ms。",
+      "effective_severity": "high",
       "evidence": {
         "actual": 4400.0,
         "cluster_id": "af4b9db7cdc9c045",
@@ -227,17 +243,23 @@
       },
       "finding_id": "fnd-ef063fd05124e5b1",
       "node_path": "",
+      "original_severity": "high",
       "plan_file": "",
       "query_id": "",
       "recommendation": "结合执行计划定位主要耗时算子，先验证索引与数据分布假设。",
       "rule_id": "COST-AVG-001",
       "severity": "high",
+      "suppressed": false,
+      "suppression_reason": "",
+      "suppression_source": "",
       "title": "平均耗时偏高"
     },
     {
+      "baseline_id": "",
       "category": "cost",
       "cluster_id": "b6b972a308926333",
       "description": "簇 b6b972a308926333 平均耗时 2705.0 ms，超过阈值 1000 ms。",
+      "effective_severity": "high",
       "evidence": {
         "actual": 2705.0,
         "cluster_id": "b6b972a308926333",
@@ -248,17 +270,23 @@
       },
       "finding_id": "fnd-339006ef44ab5a76",
       "node_path": "",
+      "original_severity": "high",
       "plan_file": "",
       "query_id": "",
       "recommendation": "结合执行计划定位主要耗时算子，先验证索引与数据分布假设。",
       "rule_id": "COST-AVG-001",
       "severity": "high",
+      "suppressed": false,
+      "suppression_reason": "",
+      "suppression_source": "",
       "title": "平均耗时偏高"
     },
     {
+      "baseline_id": "",
       "category": "cost",
       "cluster_id": "c34301cef6431f5f",
       "description": "簇 c34301cef6431f5f 平均耗时 2112.5 ms，超过阈值 1000 ms。",
+      "effective_severity": "high",
       "evidence": {
         "actual": 2112.5,
         "cluster_id": "c34301cef6431f5f",
@@ -269,17 +297,23 @@
       },
       "finding_id": "fnd-cab8157138614f6e",
       "node_path": "",
+      "original_severity": "high",
       "plan_file": "",
       "query_id": "",
       "recommendation": "结合执行计划定位主要耗时算子，先验证索引与数据分布假设。",
       "rule_id": "COST-AVG-001",
       "severity": "high",
+      "suppressed": false,
+      "suppression_reason": "",
+      "suppression_source": "",
       "title": "平均耗时偏高"
     },
     {
+      "baseline_id": "",
       "category": "plan",
       "cluster_id": "c34301cef6431f5f",
       "description": "节点 0 将数值列 customers.id（bigint）与字符串字面量 '42' 比较。",
+      "effective_severity": "high",
       "evidence": {
         "column": "id",
         "column_type": "bigint",
@@ -291,17 +325,23 @@
       },
       "finding_id": "fnd-f24b203f50898f73",
       "node_path": "0",
+      "original_severity": "high",
       "plan_file": "fixtures/plans/bad_index.json",
       "query_id": "",
       "recommendation": "检查应用绑定参数类型，确保数值列使用数值类型参数。",
       "rule_id": "PLAN-CAST-001",
       "severity": "high",
+      "suppressed": false,
+      "suppression_reason": "",
+      "suppression_source": "",
       "title": "隐式类型转换风险"
     },
     {
+      "baseline_id": "",
       "category": "plan",
       "cluster_id": "af4b9db7cdc9c045",
       "description": "节点 0.1 对表 order_items（约 900000 行）使用 ALL 全表扫描。",
+      "effective_severity": "high",
       "evidence": {
         "access_type": "ALL",
         "node_path": "0.1",
@@ -313,17 +353,23 @@
       },
       "finding_id": "fnd-ca78de08effdefda",
       "node_path": "0.1",
+      "original_severity": "high",
       "plan_file": "fixtures/plans/nested_loop.json",
       "query_id": "",
       "recommendation": "检查过滤条件与排序字段，评估补充组合索引；本工具不生成改写后的 SQL。",
       "rule_id": "PLAN-FULLSCAN-001",
       "severity": "high",
+      "suppressed": false,
+      "suppression_reason": "",
+      "suppression_source": "",
       "title": "大表全表扫描"
     },
     {
+      "baseline_id": "",
       "category": "plan",
       "cluster_id": "b6b972a308926333",
       "description": "节点 0 对表 orders（约 500000 行）使用 ALL 全表扫描。",
+      "effective_severity": "high",
       "evidence": {
         "access_type": "ALL",
         "node_path": "0",
@@ -335,17 +381,23 @@
       },
       "finding_id": "fnd-ba7b9091cbf8d7d9",
       "node_path": "0",
+      "original_severity": "high",
       "plan_file": "fixtures/plans/full_scan.json",
       "query_id": "",
       "recommendation": "检查过滤条件与排序字段，评估补充组合索引；本工具不生成改写后的 SQL。",
       "rule_id": "PLAN-FULLSCAN-001",
       "severity": "high",
+      "suppressed": false,
+      "suppression_reason": "",
+      "suppression_source": "",
       "title": "大表全表扫描"
     },
     {
+      "baseline_id": "",
       "category": "plan",
       "cluster_id": "c34301cef6431f5f",
       "description": "节点 0 的条件 lower(customers.region 包裹了已索引列 customers.region，可能导致普通索引失效。",
+      "effective_severity": "high",
       "evidence": {
         "column": "region",
         "expression": "lower(customers.region",
@@ -358,17 +410,23 @@
       },
       "finding_id": "fnd-cef91ad732333516",
       "node_path": "0",
+      "original_severity": "high",
       "plan_file": "fixtures/plans/bad_index.json",
       "query_id": "",
       "recommendation": "核对表达式索引或改写条件；先在测试环境验证执行计划。",
       "rule_id": "PLAN-FUNC-001",
       "severity": "high",
+      "suppressed": false,
+      "suppression_reason": "",
+      "suppression_source": "",
       "title": "索引列被函数包裹"
     },
     {
+      "baseline_id": "",
       "category": "plan",
       "cluster_id": "af4b9db7cdc9c045",
       "description": "嵌套循环内层节点 0.1 对 order_items（约 900000 行）逐行扫描且未使用索引。",
+      "effective_severity": "high",
       "evidence": {
         "access_type": "ALL",
         "nested_loop_position": 1,
@@ -381,17 +439,23 @@
       },
       "finding_id": "fnd-d01f6000b013e9c1",
       "node_path": "0.1",
+      "original_severity": "high",
       "plan_file": "fixtures/plans/nested_loop.json",
       "query_id": "",
       "recommendation": "检查连接键上是否有可用索引，并确认连接顺序与统计信息。",
       "rule_id": "PLAN-NL-INNER-001",
       "severity": "high",
+      "suppressed": false,
+      "suppression_reason": "",
+      "suppression_source": "",
       "title": "嵌套循环内层缺索引"
     },
     {
+      "baseline_id": "",
       "category": "cost",
       "cluster_id": "c34301cef6431f5f",
       "description": "簇 c34301cef6431f5f 锁等待时间占执行时间比例 0.402367，超过阈值 0.3。",
+      "effective_severity": "medium",
       "evidence": {
         "actual": 0.402367,
         "cluster_id": "c34301cef6431f5f",
@@ -402,17 +466,23 @@
       },
       "finding_id": "fnd-89d35d365e84f626",
       "node_path": "",
+      "original_severity": "medium",
       "plan_file": "",
       "query_id": "",
       "recommendation": "检查事务边界、行锁竞争与批量更新提交粒度。",
       "rule_id": "COST-LOCK-001",
       "severity": "medium",
+      "suppressed": false,
+      "suppression_reason": "",
+      "suppression_source": "",
       "title": "锁等待占比偏高"
     },
     {
+      "baseline_id": "",
       "category": "cost",
       "cluster_id": "af4b9db7cdc9c045",
       "description": "簇 af4b9db7cdc9c045 的 P95 耗时为 4800.0 ms（nearest-rank 口径）。",
+      "effective_severity": "medium",
       "evidence": {
         "actual": 4800.0,
         "cluster_id": "af4b9db7cdc9c045",
@@ -423,17 +493,23 @@
       },
       "finding_id": "fnd-6a82c28a5c1eacf3",
       "node_path": "",
+      "original_severity": "medium",
       "plan_file": "",
       "query_id": "",
       "recommendation": "检查长尾样本的绑定变量、数据倾斜与锁等待情况。",
       "rule_id": "COST-P95-001",
       "severity": "medium",
+      "suppressed": false,
+      "suppression_reason": "",
+      "suppression_source": "",
       "title": "P95 耗时偏高"
     },
     {
+      "baseline_id": "",
       "category": "cost",
       "cluster_id": "b6b972a308926333",
       "description": "簇 b6b972a308926333 的 P95 耗时为 3200.0 ms（nearest-rank 口径）。",
+      "effective_severity": "medium",
       "evidence": {
         "actual": 3200.0,
         "cluster_id": "b6b972a308926333",
@@ -444,17 +520,23 @@
       },
       "finding_id": "fnd-387e46b4759e2c35",
       "node_path": "",
+      "original_severity": "medium",
       "plan_file": "",
       "query_id": "",
       "recommendation": "检查长尾样本的绑定变量、数据倾斜与锁等待情况。",
       "rule_id": "COST-P95-001",
       "severity": "medium",
+      "suppressed": false,
+      "suppression_reason": "",
+      "suppression_source": "",
       "title": "P95 耗时偏高"
     },
     {
+      "baseline_id": "",
       "category": "cost",
       "cluster_id": "c34301cef6431f5f",
       "description": "簇 c34301cef6431f5f 的 P95 耗时为 2400.0 ms（nearest-rank 口径）。",
+      "effective_severity": "medium",
       "evidence": {
         "actual": 2400.0,
         "cluster_id": "c34301cef6431f5f",
@@ -465,17 +547,23 @@
       },
       "finding_id": "fnd-c7fdf634a8f88dde",
       "node_path": "",
+      "original_severity": "medium",
       "plan_file": "",
       "query_id": "",
       "recommendation": "检查长尾样本的绑定变量、数据倾斜与锁等待情况。",
       "rule_id": "COST-P95-001",
       "severity": "medium",
+      "suppressed": false,
+      "suppression_reason": "",
+      "suppression_source": "",
       "title": "P95 耗时偏高"
     },
     {
+      "baseline_id": "",
       "category": "plan",
       "cluster_id": "b6b972a308926333",
       "description": "节点 0 在大结果集（500000 行）上执行文件排序或临时表操作。",
+      "effective_severity": "medium",
       "evidence": {
         "node_path": "0",
         "operation": "TABLE ACCESS",
@@ -488,11 +576,15 @@
       },
       "finding_id": "fnd-53dab6baf777b805",
       "node_path": "0",
+      "original_severity": "medium",
       "plan_file": "fixtures/plans/full_scan.json",
       "query_id": "",
       "recommendation": "评估排序字段索引与 LIMIT 下推，避免在超大中间结果上排序。",
       "rule_id": "PLAN-SORT-001",
       "severity": "medium",
+      "suppressed": false,
+      "suppression_reason": "",
+      "suppression_source": "",
       "title": "大结果集排序/临时表"
     }
   ],
@@ -1282,6 +1374,13 @@
   ],
   "report_type": "slowquery-autopsy-batch",
   "schema_version": 1,
+  "severity_counts": {
+    "critical": 0,
+    "high": 9,
+    "info": 0,
+    "low": 0,
+    "medium": 5
+  },
   "summary": {
     "batch_id": "batch-bf0f825b4eb270c13682",
     "counts": {
@@ -1294,6 +1393,7 @@
       "plan_nodes": 8,
       "plans": 5,
       "queries": 20,
+      "suppressed_findings": 0,
       "unassociated_plans": 1,
       "unparsed_lines": 3
     },
@@ -1301,6 +1401,13 @@
       "all_queries_total_ms": 50350.0,
       "analyzed_total_ms": 49600.0,
       "max_query_ms": 4800.0
+    },
+    "effective_severity_counts": {
+      "critical": 0,
+      "high": 9,
+      "info": 0,
+      "low": 0,
+      "medium": 5
     },
     "excluded_prefixes": [
       "SET",
@@ -1326,6 +1433,11 @@
         "sql": "SHOW INDEX FROM orders;"
       }
     ],
+    "finding_baselines": {
+      "count": 0,
+      "items": [],
+      "suppressed_findings": 0
+    },
     "fingerprint_rules_sha256": "e5a3ce32d6ae87b3",
     "normalization_rules": [
       "FP-COMMENTS",

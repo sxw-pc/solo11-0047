@@ -51,10 +51,26 @@ section { margin-bottom:8px; }</style>
       <div class="metric"><strong>18</strong><span>参与聚类</span></div>
       <div class="metric"><strong>4</strong><span>指纹簇</span></div>
       <div class="metric"><strong>14</strong><span>诊断发现</span></div>
-      <div class="metric"><strong>9</strong><span>高危及以上</span></div>
+      <div class="metric"><strong>9</strong><span>生效高危及以上</span></div>
+      <div class="metric"><strong>0</strong><span>基线抑制</span></div>
       <div class="metric"><strong>3</strong><span>未解析行</span></div>
     </div>
+    <p class="muted">原始严重级别：critical=0 · high=9 · medium=5 · low=0 · info=0</p>
+    <p class="muted">生效严重级别：critical=0 · high=9 · medium=5 · low=0 · info=0（被抑制发现按 info 计）</p>
     <p class="muted">总耗时 50350.000 ms · 分析总耗时 49600.000 ms · 分位数 nearest-rank</p>
+  </section>
+
+  <section>
+    <h2>发现基线豁免</h2>
+    <p class="muted">共 0 条基线；本批次命中 0 条发现。基线只按规则 ID / SQL 指纹匹配，不依赖计划节点行号或路径。</p>
+    <table>
+      <thead><tr><th>基线</th><th>规则</th><th>指纹</th><th>来源</th><th>备注</th></tr></thead>
+      <tbody>
+      
+        <tr><td colspan="5">未登记任何基线。</td></tr>
+      
+      </tbody>
+    </table>
   </section>
 
   <section>
@@ -121,11 +137,12 @@ WHERE lower(c.reg</code></td>
   <section>
     <h2>规则触发</h2>
     <table>
-      <thead><tr><th>级别</th><th>finding_id</th><th>规则</th><th>类别</th><th>簇 / 计划</th><th>说明</th></tr></thead>
+      <thead><tr><th>生效级别</th><th>原始级别</th><th>finding_id</th><th>规则</th><th>类别</th><th>簇 / 计划</th><th>说明</th></tr></thead>
       <tbody>
       
         <tr>
           <td><span class="sev sev-high">high</span></td>
+          <td>high</td>
           <td><code>fnd-5ee30d7fa393e6cb</code></td>
           <td><code>COST-AMP-001</code></td>
           <td>cost</td>
@@ -135,6 +152,7 @@ WHERE lower(c.reg</code></td>
       
         <tr>
           <td><span class="sev sev-high">high</span></td>
+          <td>high</td>
           <td><code>fnd-ef063fd05124e5b1</code></td>
           <td><code>COST-AVG-001</code></td>
           <td>cost</td>
@@ -144,6 +162,7 @@ WHERE lower(c.reg</code></td>
       
         <tr>
           <td><span class="sev sev-high">high</span></td>
+          <td>high</td>
           <td><code>fnd-339006ef44ab5a76</code></td>
           <td><code>COST-AVG-001</code></td>
           <td>cost</td>
@@ -153,6 +172,7 @@ WHERE lower(c.reg</code></td>
       
         <tr>
           <td><span class="sev sev-high">high</span></td>
+          <td>high</td>
           <td><code>fnd-cab8157138614f6e</code></td>
           <td><code>COST-AVG-001</code></td>
           <td>cost</td>
@@ -162,6 +182,7 @@ WHERE lower(c.reg</code></td>
       
         <tr>
           <td><span class="sev sev-high">high</span></td>
+          <td>high</td>
           <td><code>fnd-f24b203f50898f73</code></td>
           <td><code>PLAN-CAST-001</code></td>
           <td>plan</td>
@@ -171,6 +192,7 @@ WHERE lower(c.reg</code></td>
       
         <tr>
           <td><span class="sev sev-high">high</span></td>
+          <td>high</td>
           <td><code>fnd-ca78de08effdefda</code></td>
           <td><code>PLAN-FULLSCAN-001</code></td>
           <td>plan</td>
@@ -180,6 +202,7 @@ WHERE lower(c.reg</code></td>
       
         <tr>
           <td><span class="sev sev-high">high</span></td>
+          <td>high</td>
           <td><code>fnd-ba7b9091cbf8d7d9</code></td>
           <td><code>PLAN-FULLSCAN-001</code></td>
           <td>plan</td>
@@ -189,6 +212,7 @@ WHERE lower(c.reg</code></td>
       
         <tr>
           <td><span class="sev sev-high">high</span></td>
+          <td>high</td>
           <td><code>fnd-cef91ad732333516</code></td>
           <td><code>PLAN-FUNC-001</code></td>
           <td>plan</td>
@@ -198,6 +222,7 @@ WHERE lower(c.reg</code></td>
       
         <tr>
           <td><span class="sev sev-high">high</span></td>
+          <td>high</td>
           <td><code>fnd-d01f6000b013e9c1</code></td>
           <td><code>PLAN-NL-INNER-001</code></td>
           <td>plan</td>
@@ -207,6 +232,7 @@ WHERE lower(c.reg</code></td>
       
         <tr>
           <td><span class="sev sev-medium">medium</span></td>
+          <td>medium</td>
           <td><code>fnd-89d35d365e84f626</code></td>
           <td><code>COST-LOCK-001</code></td>
           <td>cost</td>
@@ -216,6 +242,7 @@ WHERE lower(c.reg</code></td>
       
         <tr>
           <td><span class="sev sev-medium">medium</span></td>
+          <td>medium</td>
           <td><code>fnd-6a82c28a5c1eacf3</code></td>
           <td><code>COST-P95-001</code></td>
           <td>cost</td>
@@ -225,6 +252,7 @@ WHERE lower(c.reg</code></td>
       
         <tr>
           <td><span class="sev sev-medium">medium</span></td>
+          <td>medium</td>
           <td><code>fnd-387e46b4759e2c35</code></td>
           <td><code>COST-P95-001</code></td>
           <td>cost</td>
@@ -234,6 +262,7 @@ WHERE lower(c.reg</code></td>
       
         <tr>
           <td><span class="sev sev-medium">medium</span></td>
+          <td>medium</td>
           <td><code>fnd-c7fdf634a8f88dde</code></td>
           <td><code>COST-P95-001</code></td>
           <td>cost</td>
@@ -243,6 +272,7 @@ WHERE lower(c.reg</code></td>
       
         <tr>
           <td><span class="sev sev-medium">medium</span></td>
+          <td>medium</td>
           <td><code>fnd-53dab6baf777b805</code></td>
           <td><code>PLAN-SORT-001</code></td>
           <td>plan</td>

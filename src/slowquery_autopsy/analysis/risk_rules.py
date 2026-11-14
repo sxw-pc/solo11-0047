@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Iterable
 
-from ..models import SEVERITY_ORDER, Finding, sort_findings
+from ..models import SEVERITY_ORDER, Finding, FindingBaseline, sort_findings
 from ..util.hashing import stable_id
 
 
@@ -17,6 +17,12 @@ def _target(candidate: dict[str, Any]) -> dict[str, str]:
 
 
 def finding_id_for(candidate: dict[str, Any]) -> str:
+    """Derive the identity of a finding.
+
+    The id deliberately excludes severity, suppression state and baseline
+    metadata.  Overrides and baseline suppression therefore cannot change the
+    identity that batch diffing relies on.
+    """
     return stable_id(
         "fnd",
         candidate["rule_id"],
@@ -25,9 +31,42 @@ def finding_id_for(candidate: dict[str, Any]) -> str:
     )
 
 
+def _as_baseline(value: FindingBaseline | dict[str, Any]) -> FindingBaseline:
+    if isinstance(value, FindingBaseline):
+        return value
+    return FindingBaseline.from_row(value)
+
+
+def apply_finding_baselines(
+    findings: Iterable[Finding],
+    baselines: Iterable[FindingBaseline | dict[str, Any]] | None,
+) -> list[Finding]:
+    """Mark matching findings as suppressed without touching their severity.
+
+    Suppression is a pure presentation/alerting state: ``finding.severity`` keeps
+    its original rule value, while ``finding.effective_severity`` becomes
+    ``info``.  Application is idempotent and never creates or removes findings,
+    so finding ids stay stable across suppression.
+    """
+    prepared = [_as_baseline(item) for item in baselines or []]
+    result: list[Finding] = []
+    for finding in findings:
+        if not finding.suppressed:
+            for baseline in prepared:
+                if baseline.matches(finding):
+                    finding.suppressed = True
+                    finding.baseline_id = baseline.baseline_id
+                    finding.suppression_source = baseline.origin or "ledger"
+                    finding.suppression_reason = baseline.describe()
+                    break
+        result.append(finding)
+    return sort_findings(result)
+
+
 def build_findings(
     candidates: Iterable[dict[str, Any]],
     overrides: dict[str, dict[str, Any]] | None = None,
+    baselines: Iterable[FindingBaseline | dict[str, Any]] | None = None,
 ) -> list[Finding]:
     overrides = overrides or {}
     findings: list[Finding] = []
@@ -60,7 +99,7 @@ def build_findings(
             plan_file=str(candidate.get("plan_file", "")),
             node_path=str(candidate.get("node_path", "")),
         ))
-    return sort_findings(findings)
+    return apply_finding_baselines(findings, baselines)
 
 
 def rule_catalog(
@@ -88,4 +127,6 @@ def rule_catalog(
 
 
 def high_finding_ids(findings: Iterable[Finding]) -> set[str]:
-    return {finding.finding_id for finding in findings if finding.severity in ("critical", "high")}
+    """Ids that still alert after baseline suppression is applied."""
+    return {finding.finding_id for finding in findings
+            if finding.effective_severity in ("critical", "high")}

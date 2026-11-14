@@ -52,7 +52,7 @@ template dir present: cluster.html.j2, detail.html.j2, index.html.j2
 ```text
 $ python -m pytest
 .................................................                        [100%]
-49 passed in 4.14s
+64 passed
 ```
 
 说明：全局安装的 `pytest-asyncio` 插件会打印一条未设置 fixture loop scope 的弃用提示。项目自身不依赖 `pytest-asyncio`，该提示不影响测试结果。测试过程中本地服务使用回环地址，不访问外部网络。
@@ -62,14 +62,14 @@ $ python -m pytest
 ```text
 $ PYTHONPATH=src python -m slowquery_autopsy run --config configs/pipeline.yaml
 batch batch-bf0f825b4eb270c13682: inserted
-queries=20 clusters=4 plans=5 findings=14 high=9 unparsed=3
+queries=20 clusters=4 plans=5 findings=14 high=9 suppressed=0 unparsed=3
 markdown: reports/batch-bf0f825b4eb270c13682/report.md
 json: reports/batch-bf0f825b4eb270c13682/report.json
 html_index: reports/batch-bf0f825b4eb270c13682/html/index.html
 
 $ PYTHONPATH=src python -m slowquery_autopsy run --config configs/pipeline.yaml
 batch batch-bf0f825b4eb270c13682: already existed (idempotent no-op)
-queries=20 clusters=4 plans=5 findings=14 high=9 unparsed=3
+queries=20 clusters=4 plans=5 findings=14 high=9 suppressed=0 unparsed=3
 ...
 ```
 
@@ -105,7 +105,7 @@ exit=2
 ```text
 == run 1 ==
 batch batch-bf0f825b4eb270c13682: inserted
-queries=20 clusters=4 plans=5 findings=14 high=9 unparsed=3
+queries=20 clusters=4 plans=5 findings=14 high=9 suppressed=0 unparsed=3
 exit 0
 
 == run 2 ==
@@ -288,7 +288,7 @@ reports/batch-bf0f825b4eb270c13682/
 6. `SET`/`SHOW`/`USE` 默认排除出聚类，但仍保留在报告和台账中。
 7. diff 是批次集合差异，不提供统计显著性、趋势或性能基准。
 8. 本地 HTTP 服务无认证；必须保持回环绑定，禁止反向代理或端口转发暴露。
-9. 当前 CLI 未提供独立的 baseline 管理子命令；`Ledger` API 已支持 `set_baseline`/`get_baseline`，diff 比较记录会自动写入 `comparisons`。
+9. 发现基线通过 `baseline add/list/remove` 子命令或 `risk.baselines` 配置管理；基线只按规则 ID / SQL 指纹匹配，抑制后仅生效级别降为 info，原始级别与 finding 身份保持不变。命名批次基线仍由 `Ledger.set_baseline`/`get_baseline` 提供，diff 比较记录会自动写入 `comparisons`。
 10. 报告包含原始 SQL、用户、客户端和数据库名，应按内部敏感数据管理。
 
 ## 8. 最终检查清单
@@ -300,9 +300,9 @@ reports/batch-bf0f825b4eb270c13682/
 - [x] F5 可解释成本归因（actual/threshold/query_count/cluster）。
 - [x] F6 JSON + 文本计划解析与五类审计规则。
 - [x] F7 统一 finding，稳定 ID，启用/禁用/级别覆盖。
-- [x] F8 SQLite 幂等批次、baseline、comparison。
+- [x] F8 SQLite 幂等批次、发现基线豁免（原始/生效级别分离）、comparison。
 - [x] 确定性 Markdown / JSON / HTML 报告。
 - [x] 仅回环、只读、GET/HEAD 本地服务。
 - [x] `run` / `serve` / `diff` / `validate` CLI 与 Makefile。
 - [x] README、COMPLIANCE、DELIVERY、合成 fixtures 与示例报告。
-- [x] 49 项测试通过，Python 总行数 4487，全部文件 ≤300 行。
+- [x] 64 项测试通过（新增基线抑制、身份稳定、重复批次幂等、未登记不误伤、旧台账迁移）。

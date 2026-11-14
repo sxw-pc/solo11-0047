@@ -61,22 +61,33 @@ def _index(ledger: Any) -> str:
 </section>""")
 
 
+def _severity_line(summary: dict[str, Any], key: str, label: str) -> str:
+    counts = summary.get(key, {})
+    if not counts:
+        return ""
+    text = " · ".join(f"{level}={count}" for level, count in counts.items())
+    return f'<p class="muted">{label}：{_esc(text)}</p>'
+
+
 def _batch(ledger: Any, batch_id: str) -> tuple[int, str]:
     batch = ledger.get_batch(batch_id)
     if not batch:
         return 404, _page("批次不存在", "<p>未找到该批次。</p>")
     summary = batch["summary"]
     counts = summary.get("counts", {})
-    severity = summary.get("severity_counts", {})
+    baselines = summary.get("finding_baselines", {})
     return 200, _page(f"批次 {batch_id}", f"""{_batch_nav(batch_id)}
 <section><h2>概览</h2><div class="metrics">
 <div class="metric"><strong>{_esc(counts.get('queries', 0))}</strong><span>慢查</span></div>
 <div class="metric"><strong>{_esc(counts.get('clusters', 0))}</strong><span>指纹簇</span></div>
 <div class="metric"><strong>{_esc(counts.get('findings', 0))}</strong><span>发现</span></div>
-<div class="metric"><strong>{_esc(counts.get('high_findings', 0))}</strong><span>高危及以上</span></div>
+<div class="metric"><strong>{_esc(counts.get('high_findings', 0))}</strong><span>生效高危及以上</span></div>
+<div class="metric"><strong>{_esc(counts.get('suppressed_findings', 0))}</strong><span>基线抑制</span></div>
 <div class="metric"><strong>{_esc(counts.get('unparsed_lines', 0))}</strong><span>未解析行</span></div>
 </div>
-<p class="muted">严重级别：{_esc(severity)}</p>
+{_severity_line(summary, 'severity_counts', '原始严重级别')}
+{_severity_line(summary, 'effective_severity_counts', '生效严重级别（抑制项按 info 计）')}
+<p class="muted">发现基线 {_esc(baselines.get('count', 0))} 条；命中抑制 {_esc(baselines.get('suppressed_findings', 0))} 条。</p>
 <p>输入哈希 <code>{_esc(batch['input_hash'][:16])}</code> · 配置哈希 <code>{_esc(batch['config_hash'][:16])}</code></p>
 </section>
 <section><h2>未解析与未关联</h2>
@@ -114,18 +125,20 @@ def _cluster(ledger: Any, batch_id: str, cluster_id: str) -> tuple[int, str]:
         for q in queries
     )
     finding_rows = "".join(
-        f'<tr><td>{_esc(f["severity"])}</td><td><code>{_esc(f["rule_id"])}</code></td>'
+        f'<tr><td>{_esc(f["effective_severity"])}'
+        f'{_esc("（已抑制）" if f["suppressed"] else "")}</td>'
+        f'<td>{_esc(f["original_severity"])}</td><td><code>{_esc(f["rule_id"])}</code></td>'
         f'<td><a href="/finding/{quote(batch_id, safe="")}/{quote(f["finding_id"], safe="")}"><code>{_esc(f["finding_id"])}</code></a></td>'
         f'<td>{_esc(f["description"])}</td></tr>'
         for f in findings
-    ) or '<tr><td colspan="4">无关联发现。</td></tr>'
+    ) or '<tr><td colspan="5">无关联发现。</td></tr>'
     body = _batch_nav(batch_id) + f"""<section><h2>统计</h2>
 <p>出现 {_esc(cluster['query_count'])} 次 · 平均 {cluster['avg_duration_ms']:.3f} ms ·
 P50 {cluster['p50_duration_ms']:.3f} ms · P95 {cluster['p95_duration_ms']:.3f} ms ·
 扫描放大 {cluster['amplification']:.2f}x · 锁等待占比 {cluster['lock_ratio']:.2%}</p>
 <h2>样本 SQL</h2><pre>{_esc(cluster['sample_sql'])}</pre>
 <h3>归一化</h3><pre>{_esc(cluster['normalized_sql'])}</pre></section>
-<section><h2>关联发现</h2><table><thead><tr><th>级别</th><th>规则</th><th>finding_id</th><th>说明</th></tr></thead>
+<section><h2>关联发现</h2><table><thead><tr><th>生效级别</th><th>原始级别</th><th>规则</th><th>finding_id</th><th>说明</th></tr></thead>
 <tbody>{finding_rows}</tbody></table></section>
 <section><h2>单体慢查</h2><table><thead><tr><th>query_id</th><th>来源</th><th>耗时 ms</th><th>扫描/返回</th></tr></thead>
 <tbody>{query_rows}</tbody></table></section>"""
@@ -137,14 +150,18 @@ def _findings(ledger: Any, batch_id: str) -> tuple[int, str]:
         return 404, _page("批次不存在", "<p>未找到该批次。</p>")
     findings = ledger.list_findings(batch_id)
     rows = "".join(
-        f'<tr><td>{_esc(f["severity"])}</td><td><code>{_esc(f["rule_id"])}</code></td>'
+        f'<tr><td>{_esc(f["effective_severity"])}'
+        f'{_esc("（已抑制）" if f["suppressed"] else "")}</td>'
+        f'<td>{_esc(f["original_severity"])}</td><td><code>{_esc(f["rule_id"])}</code></td>'
         f'<td><a href="/finding/{quote(batch_id, safe="")}/{quote(f["finding_id"], safe="")}"><code>{_esc(f["finding_id"])}</code></a></td>'
         f'<td>{_esc(f["category"])}</td><td><code>{_esc(f["cluster_id"] or f["plan_file"])}</code></td>'
         f'<td>{_esc(f["description"])}</td></tr>'
         for f in findings
-    ) or '<tr><td colspan="6">无发现。</td></tr>'
+    ) or '<tr><td colspan="7">无发现。</td></tr>'
+    suppressed = sum(1 for f in findings if f["suppressed"])
     body = _batch_nav(batch_id) + f"""<section><h2>诊断发现</h2>
-<table><thead><tr><th>级别</th><th>规则</th><th>finding_id</th><th>类别</th><th>目标</th><th>说明</th></tr></thead>
+<p class="muted">共 {_esc(len(findings))} 条；基线抑制 {_esc(suppressed)} 条。生效级别用于告警，原始级别保持不变。</p>
+<table><thead><tr><th>生效级别</th><th>原始级别</th><th>规则</th><th>finding_id</th><th>类别</th><th>目标</th><th>说明</th></tr></thead>
 <tbody>{rows}</tbody></table></section>"""
     return 200, _page(f"发现列表 · {batch_id}", body)
 
@@ -154,11 +171,20 @@ def _finding(ledger: Any, batch_id: str, finding_id: str) -> tuple[int, str]:
     if not finding:
         return 404, _page("发现不存在", "<p>未找到该发现。</p>")
     evidence = json.dumps(finding["evidence"], ensure_ascii=False, sort_keys=True, indent=2)
+    suppressed_row = ""
+    if finding["suppressed"]:
+        suppressed_row = (
+            f'<tr><th>基线抑制</th><td>原始 {_esc(finding["original_severity"])} → 生效 '
+            f'{_esc(finding["effective_severity"])}；基线 <code>{_esc(finding["baseline_id"])}</code>'
+            f'（{_esc(finding["suppression_reason"])}）</td></tr>'
+        )
     body = _batch_nav(batch_id) + f"""<section><h2>{_esc(finding['title'])}</h2>
 <table><tbody>
 <tr><th>finding_id</th><td><code>{_esc(finding['finding_id'])}</code></td></tr>
 <tr><th>规则</th><td><code>{_esc(finding['rule_id'])}</code></td></tr>
-<tr><th>级别 / 类别</th><td>{_esc(finding['severity'])} / {_esc(finding['category'])}</td></tr>
+<tr><th>生效级别 / 原始级别</th><td>{_esc(finding['effective_severity'])} / {_esc(finding['original_severity'])}</td></tr>
+<tr><th>类别</th><td>{_esc(finding['category'])}</td></tr>
+{suppressed_row}
 <tr><th>簇</th><td><code>{_esc(finding['cluster_id'] or '—')}</code></td></tr>
 <tr><th>计划 / 节点</th><td>{_esc(finding['plan_file'] or '—')} / {_esc(finding['node_path'] or '—')}</td></tr>
 </tbody></table>

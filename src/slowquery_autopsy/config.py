@@ -8,11 +8,55 @@ from typing import Any
 
 import yaml
 
-from .util.hashing import canonical_json, sha256_text
+from .models import FindingBaseline
+from .util.hashing import canonical_json, sha256_text, stable_id
 
 
 class ConfigError(ValueError):
     """Raised when a configuration or referenced file is invalid."""
+
+
+def _baseline_id(rule_id: str, fingerprint: str, explicit: Any = None) -> str:
+    if explicit is not None:
+        if not isinstance(explicit, str) or not explicit.strip():
+            raise ConfigError("risk.baselines[].id: expected a non-empty string")
+        return explicit.strip()
+    return stable_id("bl", rule_id, fingerprint)
+
+
+def _parse_baselines(value: Any) -> list[FindingBaseline]:
+    if value is None:
+        return []
+    if not isinstance(value, list):
+        raise ConfigError("risk.baselines: expected a list")
+    baselines: list[FindingBaseline] = []
+    seen: set[str] = set()
+    for index, item in enumerate(value):
+        entry = _require_mapping(item, f"risk.baselines[{index}]")
+        rule_id = entry.get("rule_id", "")
+        fingerprint = entry.get("fingerprint", "")
+        if not isinstance(rule_id, str) or not isinstance(fingerprint, str):
+            raise ConfigError(f"risk.baselines[{index}]: rule_id/fingerprint must be strings")
+        rule_id = rule_id.strip()
+        fingerprint = fingerprint.strip()
+        if not rule_id and not fingerprint:
+            raise ConfigError(
+                f"risk.baselines[{index}]: expected rule_id and/or fingerprint"
+            )
+        baseline_id = _baseline_id(rule_id, fingerprint, entry.get("id"))
+        if baseline_id in seen:
+            raise ConfigError(f"risk.baselines[{index}]: duplicate baseline id {baseline_id}")
+        seen.add(baseline_id)
+        baselines.append(FindingBaseline(
+            baseline_id=baseline_id,
+            rule_id=rule_id,
+            fingerprint=fingerprint,
+            note=str(entry.get("note", "")),
+            source_batch_id=str(entry.get("source_batch_id", "")),
+            created_at=str(entry.get("created_at", "")),
+            origin=str(entry.get("origin", "config")),
+        ))
+    return baselines
 
 
 @dataclass(frozen=True)
@@ -43,6 +87,7 @@ class AppConfig:
     plan_links: dict[str, str]
     cost_rules: list[dict[str, Any]]
     risk_overrides: dict[str, dict[str, Any]]
+    finding_baselines: list[FindingBaseline]
     fail_on_severity: list[str]
     diff_fail_on_new_high: bool
     report_options: dict[str, Any]
@@ -70,8 +115,14 @@ class AppConfig:
     def config_fingerprint(self) -> str:
         rules_part = self.source_hashes.get(self.display(self.fingerprint_rules_path), "")
         audit_part = self.source_hashes.get(self.display(self.plan_rules_path), "")
+        # Baseline exemptions only affect alerting presentation, not the analysis
+        # inputs, so editing them must not mint a new batch id.
+        pipeline = dict(self.raw)
+        risk = dict(pipeline.get("risk", {}) or {})
+        risk.pop("baselines", None)
+        pipeline["risk"] = risk
         payload = {
-            "pipeline": self.raw,
+            "pipeline": pipeline,
             "fingerprint_rules_sha256": rules_part,
             "plan_audit_rules_sha256": audit_part,
         }
@@ -83,6 +134,12 @@ class AppConfig:
             return False
         threshold = min(order.get(level, 99) for level in self.fail_on_severity)
         return order.get(severity, 99) <= threshold
+
+    def finding_can_fail(self, finding: Any) -> bool:
+        """Alerting decision uses the effective severity, never the original one."""
+        return self.severity_can_fail(
+            getattr(finding, "effective_severity", getattr(finding, "severity", "info"))
+        )
 
 
 def _require_mapping(value: Any, where: str) -> dict[str, Any]:
@@ -216,6 +273,7 @@ def load_config(path: str | Path) -> AppConfig:
         str(key): _require_mapping(value, f"risk.overrides.{key}")
         for key, value in overrides.items()
     }
+    finding_baselines = _parse_baselines(risk_cfg.get("baselines"))
     fail_on = _as_string_list(risk_cfg.get("fail_on_severity", []), "risk.fail_on_severity")
     for level in fail_on:
         if level not in ("critical", "high", "medium", "low", "info"):
@@ -259,6 +317,7 @@ def load_config(path: str | Path) -> AppConfig:
         plan_links=plan_links,
         cost_rules=cost_rules,
         risk_overrides=risk_overrides,
+        finding_baselines=finding_baselines,
         fail_on_severity=fail_on,
         diff_fail_on_new_high=bool(risk_cfg.get("diff_fail_on_new_high", False)),
         report_options=report_options,

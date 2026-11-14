@@ -60,11 +60,13 @@ python -m slowquery_autopsy serve --config configs/pipeline.yaml
 
 ```text
 batch batch-bf0f825b4eb270c13682: inserted
-queries=20 clusters=4 plans=5 findings=14 high=9 unparsed=3
+queries=20 clusters=4 plans=5 findings=14 high=9 suppressed=0 unparsed=3
 markdown: reports/batch-bf0f825b4eb270c13682/report.md
 json: reports/batch-bf0f825b4eb270c13682/report.json
 html_index: reports/batch-bf0f825b4eb270c13682/html/index.html
 ```
+
+其中 `high` 为**生效**高危及以上数量（等于原始数量减去被基线抑制的 high/critical）。
 
 再次用完全相同的输入执行 `run`，会以同一 `batch_id` 幂等跳过台账写入，并重新生成确定性的报告：
 
@@ -173,8 +175,9 @@ CSV 可用字段：`timestamp`、`user`、`database`、`duration_sec`、`lock_se
 | `plan.links` | 否 | 计划路径/文件名 → 指纹；优先于计划文件内嵌指纹 |
 | `risk.overrides.<RULE_ID>.enabled` | 否 | 关闭某条规则 |
 | `risk.overrides.<RULE_ID>.severity` | 否 | 覆盖严重级别 |
-| `risk.fail_on_severity` | 否 | `run` 的非零退出阈值；设置 `high` 会同时拦截 high 与 critical |
-| `risk.diff_fail_on_new_high` | 否 | 等价于为每次 diff 启用 `--fail-on-new-high` |
+| `risk.fail_on_severity` | 否 | `run` 的非零退出阈值，按**生效级别**判断；设置 `high` 会同时拦截 high 与 critical |
+| `risk.diff_fail_on_new_high` | 否 | 等价于为每次 diff 启用 `--fail-on-new-high`，同样按生效级别判断 |
+| `risk.baselines[]` | 否 | 发现基线豁免列表，见 5.6；也可用 `baseline add` 写入台账 |
 | `reports.formats` | 否 | `markdown`、`json`、`html` 的任意子集 |
 | `reports.top_clusters` | 否 | Markdown 展示的簇数量，默认 `8` |
 | `reports.unparsed_preview` | 否 | 未解析行预览数，默认 `10` |
@@ -191,6 +194,52 @@ risk:
       severity: medium
   fail_on_severity: [high]
 ```
+
+### 5.6 `risk.baselines`（发现基线豁免）
+
+用于把团队已确认的已知问题登记为基线，避免它们每批次刷屏并掩盖新出现的高危项。
+
+```yaml
+risk:
+  baselines:
+    - id: bl-known-amp          # 可选，省略则按 rule_id+fingerprint 生成稳定 ID
+      rule_id: COST-AMP-001     # 按规则 ID 豁免
+      note: 已知放大问题，已排期
+    - fingerprint: b6b972a308926333   # 按 SQL 指纹（簇 ID）豁免
+      note: 已知的全表扫描路径
+```
+
+| 字段 | 必填 | 含义 |
+|---|---|---|
+| `id` | 否 | 显式基线 ID；省略时由 `rule_id`/`fingerprint` 派生稳定 ID |
+| `rule_id` | 二选一 | 规则 ID，如 `PLAN-FULLSCAN-001` |
+| `fingerprint` | 二选一 | SQL 指纹（簇 ID），用于跨批次匹配同一查询模式 |
+| `note` | 否 | 备注，写入报告 |
+| `source_batch_id` / `created_at` / `origin` | 否 | 台账与 CLI 使用，配置中一般省略 |
+
+语义与约束：
+
+- 基线只按 `rule_id` 和/或 `fingerprint` 匹配，**不记录也不依赖**计划节点路径、日志行号或 `evidence` 中的数值；计划节点重新编号不会让基线失效。
+- 命中基线的发现保留原始 `severity`、`finding_id` 与 `evidence`，仅新增 `suppressed=true`、`baseline_id`，并把**生效级别**降为 `info`。身份在抑制前后不变，diff 不会把它当成消失或新增。
+- 报告同时给出**原始严重级别分布**与**生效严重级别分布**；`high_findings`、`--fail-on-new-high`、`risk.fail_on_severity` 一律按生效级别判断。
+- 未命中任何基线的发现完全不受影响。
+- 同一基线重复登记是幂等的：基线表按稳定 `baseline_id` 去重，重复批次不会重复抑制。
+
+CLI 管理（写入 `data/ledger.sqlite3`，并立即重算所有已存批次的抑制状态）：
+
+```bash
+PYTHONPATH=src python -m slowquery_autopsy baseline add --config configs/pipeline.yaml \
+  --rule-id COST-AMP-001 --note "known amplification"
+PYTHONPATH=src python -m slowquery_autopsy baseline add --config configs/pipeline.yaml \
+  --fingerprint b6b972a308926333
+PYTHONPATH=src python -m slowquery_autopsy baseline list --config configs/pipeline.yaml
+PYTHONPATH=src python -m slowquery_autopsy baseline remove --config configs/pipeline.yaml <baseline_id>
+# 基线与规则变化后，从台账重渲染指定批次的报告（不重跑输入）：
+PYTHONPATH=src python -m slowquery_autopsy run --config configs/pipeline.yaml \
+  --report-batch <batch_id>
+```
+
+基线来源优先级：配置中的 `risk.baselines` 与台账 `finding_baselines` 按 `baseline_id` 合并，同 ID 时以配置为准；`run` 会把配置基线登记进台账。基线只影响告警展示，不改变分析输入，因此 `risk.baselines` 不参与 `config_hash`/`batch_id` 计算：修改基线后重跑相同输入仍是幂等批次，可用 `--report-batch` 重渲染报告。
 
 ## 6. 支持的日志与计划格式
 
@@ -262,7 +311,7 @@ LIMIT 20;
 | `PLAN-NL-INNER-001` | 计划 | high | 嵌套循环内层节点无可用索引 | 表、行数、内层位置、节点路径 |
 | `PLAN-SORT-001` | 计划 | medium | 大结果集文件排序/临时表 | 行数、using_filesort、using_temporary |
 
-统一的 finding 引擎会做三件事：按 `rule_id + target + evidence` 生成稳定的 `finding_id`；按 `risk.overrides` 应用开关和级别；按严重级别、规则 ID、finding ID 排序并去重。每条发现同时保留 `category`、`cluster_id`、`plan_file`、`node_path`、`evidence` 和 `recommendation`。
+统一的 finding 引擎会做四件事：按 `rule_id + target + evidence` 生成稳定的 `finding_id`；按 `risk.overrides` 应用开关和级别；按 `rule_id`/`fingerprint` 命中的基线把生效级别降为 `info`（原始级别不变）；按生效级别、规则 ID、finding ID 排序并去重。每条发现同时保留 `category`、`cluster_id`、`plan_file`、`node_path`、`evidence`、`recommendation`，以及 `original_severity`、`effective_severity`、`suppressed`、`baseline_id`。
 
 ## 9. SQLite 台账
 
@@ -270,15 +319,16 @@ LIMIT 20;
 
 | 表 | 内容 |
 |---|---|
-| `schema_meta` | schema 版本 |
-| `batches` | 批次、配置哈希、输入哈希、创建时间、摘要 JSON |
+| `schema_meta` | schema 版本（当前为 2；旧台账在 `init_schema` 时自动补列） |
+| `batches` | 批次、配置哈希、输入哈希、创建时间、摘要 JSON（含原始/生效分布与基线信息） |
 | `log_files` | 每个输入文件的编码、行数、解析/未解析/排除计数 |
 | `slow_queries` | 单条慢查、归一化 SQL、指纹、簇、成本向量 |
 | `clusters` | 簇统计、分位数、放大倍数、锁等待占比、耗时占比 |
 | `plans` / `plan_nodes` | 计划快照与展平节点 |
-| `findings` | 统一发现与证据 JSON |
+| `findings` | 统一发现与证据 JSON；含原始/生效级别、抑制标记与基线 ID |
+| `finding_baselines` | 发现基线：稳定 ID、规则 ID、指纹、备注、来源 |
 | `unparsed_lines` | 文件、行号、原文、原因 |
-| `baselines` | 命名基线（Python `Ledger` API） |
+| `baselines` | 命名批次基线（Python `Ledger` API，与发现基线无关） |
 | `comparisons` | diff 结果与时间 |
 
 `batch_id = stable_id("batch", config_hash, input_hash, length=20)`。`config_hash` 包含流水线配置及两份规则文件的哈希；`input_hash` 使用相对展示路径、格式和文件字节，不含绝对路径或 mtime，因此同一目录布局复制到其他位置仍得到相同批次。相同配置 + 相同输入重复运行不会产生新批次；输入或规则变化才会形成新批次。
@@ -287,24 +337,26 @@ LIMIT 20;
 
 ## 10. 报告与 JSON 结构
 
-Markdown 报告固定包含：概览、TOP 指纹簇、高扫描放大清单、计划审计、诊断发现明细、规则触发表、未解析日志、未关联计划、排除语句、输入文件、口径与边界。
+Markdown 报告固定包含：概览、TOP 指纹簇、高扫描放大清单、计划审计、诊断发现明细、规则触发表、发现基线豁免、未解析日志、未关联计划、排除语句、输入文件、口径与边界。
 
 JSON 报告的顶层键稳定为：
 
 ```text
 schema_version, report_type, metadata,
-summary, file_stats, clusters, queries, plans, findings,
+summary, severity_counts, effective_severity_counts, finding_baselines,
+file_stats, clusters, queries, plans, findings,
 unparsed, excluded_statements
 ```
 
 - `metadata`：`project`、`batch_id`、`config_hash`、`input_hash`。
-- `summary`：计数、耗时、严重级别计数、规则目录、计划关联、报告选项、未解析预览。
+- `summary`：计数、耗时、原始/生效严重级别计数、基线信息、规则目录、计划关联、报告选项、未解析预览。
+- `severity_counts` / `effective_severity_counts`：分别为原始与生效严重级别分布；被抑制发现按 `info` 计入生效分布。
+- `finding_baselines[]`：已注册基线的 `baseline_id`、`rule_id`、`fingerprint`、`note`、来源。
 - `clusters[]`：`cluster_id`、样本/归一化 SQL、耗时统计、P50/P95、扫描/返回、放大倍数、锁等待占比、耗时占比、成本向量。
 - `queries[]`：来源文件与行号、用户、客户端、数据库、原始 SQL、归一化 SQL、指纹、单条成本向量、是否排除。
-- `findings[]`：`finding_id`、`rule_id`、级别、类别、目标、描述、证据、建议。
-- `unparsed[]`：文件、行号、原因、片段；`excluded_statements[]` 单独保存元数据语句。
+- `findings[]`：`finding_id`、`rule_id`、`severity`（原始）、`original_severity`、`effective_severity`、`suppressed`、`baseline_id`、级别、类别、目标、描述、证据、建议。
 
-HTML 报告使用 Jinja2 自动转义和相对链接，仅包含内联 CSS，没有远程脚本、外部字体、外链图片或 CDN。索引页提供批次统计、簇列表和发现列表入口，簇页可继续进入 query 详情。
+HTML 报告使用 Jinja2 自动转义和相对链接，仅包含内联 CSS，没有远程脚本、外部字体、外链图片或 CDN。索引页提供批次统计、原始/生效级别分布、基线与发现列表入口，簇页可继续进入 query 详情。
 
 ## 11. 批次对比与 CI
 
@@ -320,13 +372,19 @@ PYTHONPATH=src python -m slowquery_autopsy diff \
   --output reports/diff.json
 ```
 
-默认 `base` 是第二新的批次，`head` 是最新批次。输出包含新增/消失的簇、新增/消失的 high/critical 发现及计数，并把结果写入 `comparisons`。退出码约定：
+默认 `base` 是第二新的批次，`head` 是最新批次。输出包含新增/消失的簇、新增/消失的 high/critical 发现及计数，并把结果写入 `comparisons`。diff 的 high 判定使用**生效级别**，因此：
+
+- 基线抑制后的发现不会被计为 `disappeared_high_findings`（它仍在批次中，只是不告警）；
+- 再次取消抑制时也不会被误计为 `new_high_findings`；
+- `counts` 同时给出 `original_high_findings` 与 `effective_high_findings`，`suppressed_findings` 与 `newly_suppressed_findings` 单列，便于核对基线影响面。
+
+退出码约定：
 
 - `0`：命令成功；未触发失败策略。
-- `1`：`run` 发现达到 `risk.fail_on_severity`，或 diff 在启用失败策略时发现新的 high/critical。
+- `1`：`run` 发现达到 `risk.fail_on_severity`，或 diff 在启用失败策略时发现新的 high/critical（均按生效级别）。
 - `2`：配置、输入、解析、台账或参数错误。
 
-把 `diff --fail-on-new-high`（或 `risk.diff_fail_on_new_high: true`）放进 CI 即可阻止“新出现的高危模式”在无人审阅时合入。比较是**集合差异**，不是性能基准；同一个问题的证据值变化会产生新的 finding ID，这是有意的可追溯行为。
+把 `diff --fail-on-new-high`（或 `risk.diff_fail_on_new_high: true`）放进 CI 即可阻止“新出现的高危模式”在无人审阅时合入。比较是**集合差异**，不是性能基准；同一个问题的证据值变化会产生新的 finding ID，这是有意的可追溯行为。基线豁免不应被用来掩盖证据值变化：如需跟踪同一模式的数值漂移，请按 `fingerprint` 登记基线并复核生效分布。
 
 ## 12. 校验、限制与维护
 

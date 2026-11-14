@@ -1,6 +1,8 @@
 """SQLite ledger schema DDL."""
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
+
+
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS schema_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS batches (
@@ -55,6 +57,12 @@ CREATE TABLE IF NOT EXISTS findings (
   rule_id TEXT NOT NULL, plan_file TEXT NOT NULL, node_path TEXT NOT NULL,
   title TEXT NOT NULL, description TEXT NOT NULL, evidence_json TEXT NOT NULL,
   recommendation TEXT NOT NULL,
+  original_severity TEXT NOT NULL DEFAULT '',
+  effective_severity TEXT NOT NULL DEFAULT '',
+  suppressed INTEGER NOT NULL DEFAULT 0,
+  baseline_id TEXT NOT NULL DEFAULT '',
+  suppression_source TEXT NOT NULL DEFAULT '',
+  suppression_reason TEXT NOT NULL DEFAULT '',
   PRIMARY KEY (batch_id, finding_id), FOREIGN KEY (batch_id) REFERENCES batches(batch_id)
 );
 CREATE INDEX IF NOT EXISTS idx_findings_rule ON findings(batch_id, rule_id);
@@ -67,8 +75,27 @@ CREATE TABLE IF NOT EXISTS unparsed_lines (
 CREATE TABLE IF NOT EXISTS baselines (
   name TEXT PRIMARY KEY, batch_id TEXT NOT NULL, created_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS finding_baselines (
+  baseline_id TEXT PRIMARY KEY, rule_id TEXT NOT NULL DEFAULT '',
+  fingerprint TEXT NOT NULL DEFAULT '', note TEXT NOT NULL DEFAULT '',
+  source_batch_id TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL,
+  origin TEXT NOT NULL DEFAULT 'ledger'
+);
+CREATE INDEX IF NOT EXISTS idx_finding_baselines_rule
+  ON finding_baselines(rule_id, fingerprint);
 CREATE TABLE IF NOT EXISTS comparisons (
   comparison_id TEXT PRIMARY KEY, base_batch_id TEXT NOT NULL,
   head_batch_id TEXT NOT NULL, created_at TEXT NOT NULL, summary_json TEXT NOT NULL
 );
 """
+
+# Columns added after schema version 1. ``init_schema`` applies them to ledgers
+# created by older releases before the version row is updated.
+FINDINGS_MIGRATION_COLUMNS = {
+    "original_severity": "TEXT NOT NULL DEFAULT ''",
+    "effective_severity": "TEXT NOT NULL DEFAULT ''",
+    "suppressed": "INTEGER NOT NULL DEFAULT 0",
+    "baseline_id": "TEXT NOT NULL DEFAULT ''",
+    "suppression_source": "TEXT NOT NULL DEFAULT ''",
+    "suppression_reason": "TEXT NOT NULL DEFAULT ''",
+}

@@ -20,10 +20,28 @@
       <div class="metric"><strong>{{ summary.counts.analyzed_queries }}</strong><span>参与聚类</span></div>
       <div class="metric"><strong>{{ summary.counts.clusters }}</strong><span>指纹簇</span></div>
       <div class="metric"><strong>{{ summary.counts.findings }}</strong><span>诊断发现</span></div>
-      <div class="metric"><strong>{{ summary.counts.high_findings }}</strong><span>高危及以上</span></div>
+      <div class="metric"><strong>{{ summary.counts.high_findings }}</strong><span>生效高危及以上</span></div>
+      <div class="metric"><strong>{{ summary.counts.suppressed_findings }}</strong><span>基线抑制</span></div>
       <div class="metric"><strong>{{ summary.counts.unparsed_lines }}</strong><span>未解析行</span></div>
     </div>
+    <p class="muted">原始严重级别：{% for level, count in severity_counts.items() %}{{ level }}={{ count }}{% if not loop.last %} · {% endif %}{% endfor %}</p>
+    <p class="muted">生效严重级别：{% for level, count in effective_severity_counts.items() %}{{ level }}={{ count }}{% if not loop.last %} · {% endif %}{% endfor %}（被抑制发现按 info 计）</p>
     <p class="muted">总耗时 {{ "%.3f"|format(summary.durations.all_queries_total_ms) }} ms · 分析总耗时 {{ "%.3f"|format(summary.durations.analyzed_total_ms) }} ms · 分位数 nearest-rank</p>
+  </section>
+
+  <section>
+    <h2>发现基线豁免</h2>
+    <p class="muted">共 {{ summary.finding_baselines.count }} 条基线；本批次命中 {{ summary.finding_baselines.suppressed_findings }} 条发现。基线只按规则 ID / SQL 指纹匹配，不依赖计划节点行号或路径。</p>
+    <table>
+      <thead><tr><th>基线</th><th>规则</th><th>指纹</th><th>来源</th><th>备注</th></tr></thead>
+      <tbody>
+      {% for item in summary.finding_baselines.get("items", []) %}
+        <tr><td><code>{{ item.baseline_id }}</code></td><td><code>{{ item.rule_id or "—" }}</code></td><td><code>{{ item.fingerprint or "—" }}</code></td><td>{{ item.origin or "—" }}</td><td>{{ item.note or "—" }}</td></tr>
+      {% else %}
+        <tr><td colspan="5">未登记任何基线。</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
   </section>
 
   <section>
@@ -51,11 +69,12 @@
   <section>
     <h2>规则触发</h2>
     <table>
-      <thead><tr><th>级别</th><th>finding_id</th><th>规则</th><th>类别</th><th>簇 / 计划</th><th>说明</th></tr></thead>
+      <thead><tr><th>生效级别</th><th>原始级别</th><th>finding_id</th><th>规则</th><th>类别</th><th>簇 / 计划</th><th>说明</th></tr></thead>
       <tbody>
       {% for finding in findings %}
         <tr>
-          <td><span class="sev sev-{{ finding.severity }}">{{ finding.severity }}</span></td>
+          <td><span class="sev sev-{{ finding.effective_severity }}">{{ finding.effective_severity }}</span>{% if finding.suppressed %}<br><span class="muted">已抑制</span>{% endif %}</td>
+          <td>{{ finding.original_severity }}</td>
           <td><code>{{ finding.finding_id }}</code></td>
           <td><code>{{ finding.rule_id }}</code></td>
           <td>{{ finding.category }}</td>
@@ -63,7 +82,7 @@
           <td>{{ finding.description }}</td>
         </tr>
       {% else %}
-        <tr><td colspan="6">未触发规则。</td></tr>
+        <tr><td colspan="7">未触发规则。</td></tr>
       {% endfor %}
       </tbody>
     </table>

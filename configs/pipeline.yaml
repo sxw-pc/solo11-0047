@@ -98,6 +98,13 @@ risk:
   overrides: {}
   fail_on_severity: [critical]
   diff_fail_on_new_high: false
+  # Optional finding-baseline exemptions (see README 5.6). Matching uses only
+  # rule_id and/or the SQL fingerprint (cluster id); plan node paths, line
+  # numbers and evidence values are deliberately excluded. Baselines added with
+  # `slowquery-autopsy baseline add` live in the ledger.
+  # baselines:
+  #   - rule_id: COST-AMP-001
+  #   - fingerprint: b6b972a308926333
 reports:
   formats: [markdown, json, html]
   top_clusters: 8

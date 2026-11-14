@@ -65,6 +65,8 @@ def render_index(result: AnalysisResult) -> str:
         clusters=result.clusters,
         findings=result.findings,
         unparsed=result.unparsed,
+        severity_counts=result.finding_counts(),
+        effective_severity_counts=result.effective_finding_counts(),
     )
 
 
