@@ -50,6 +50,86 @@ Limit  (cost=0.43..15.20 rows=20 width=64)
     assert "Index Cond" in plan.nodes[1].condition
 
 
+def test_text_plan_sibling_subtrees_get_independent_child_indices():
+    # Two branches under one root: A's deep child must not leak the index that
+    # B should use, and B's deep child must hang off B, not off A's subtree.
+    text = """Limit  (cost=0.43..15.20 rows=20 width=64)
+  ->  Nested Loop  (cost=0.43..15.20 rows=20 width=64)
+        ->  Index Scan on alpha  (cost=0.43..14.90 rows=20 width=64)
+              ->  Seq Scan on alpha2  (cost=0.43..14.90 rows=20 width=64)
+  ->  Hash Join  (cost=0.43..15.20 rows=20 width=64)
+        ->  Seq Scan on beta  (cost=0.43..15.20 rows=20 width=64)
+              ->  Seq Scan on beta2  (cost=0.43..15.20 rows=20 width=64)
+"""
+    plan = parse_text_plan(text, "multi.txt")
+    triples = [(node.path, node.depth, node.parent_path) for node in plan.nodes]
+    assert triples == [
+        ("0", 0, ""),
+        ("0.0", 1, "0"),
+        ("0.0.0", 2, "0.0"),
+        ("0.0.0.0", 3, "0.0.0"),
+        ("0.1", 1, "0"),
+        ("0.1.0", 2, "0.1"),
+        ("0.1.0.0", 3, "0.1.0"),
+    ]
+    assert {node.path for node in plan.nodes} == {triple[0] for triple in triples}
+    assert [node.table_name for node in plan.nodes if node.table_name] == [
+        "alpha", "alpha2", "beta", "beta2",
+    ]
+    # depth must track the indentation level monotonically.
+    assert [node.depth for node in plan.nodes] == [0, 1, 2, 3, 1, 2, 3]
+
+
+def test_text_plan_comment_separated_subtrees_are_distinct():
+    # Comment-separated sections each carry their own root; the second section
+    # must not resume the first section's child indices or reuse its prefix.
+    text = """-- section one
+Limit  (cost=0.43..15.20 rows=20 width=64)
+  ->  Index Scan on alpha  (cost=0.43..14.90 rows=20 width=64)
+        ->  Seq Scan on alpha2  (cost=0.43..14.90 rows=20 width=64)
+-- section two
+Limit  (cost=0.43..15.20 rows=20 width=64)
+  ->  Index Scan on beta  (cost=0.43..14.90 rows=20 width=64)
+        ->  Seq Scan on beta2  (cost=0.43..14.90 rows=20 width=64)
+"""
+    plan = parse_text_plan(text, "sections.txt")
+    assert [(n.path, n.depth, n.parent_path) for n in plan.nodes] == [
+        ("0", 0, ""),
+        ("0.0", 1, "0"),
+        ("0.0.0", 2, "0.0"),
+        ("1", 0, ""),
+        ("1.0", 1, "1"),
+        ("1.0.0", 2, "1.0"),
+    ]
+    assert len({node.path for node in plan.nodes}) == len(plan.nodes)
+    # Parsing is deterministic across runs.
+    again = parse_text_plan(text, "sections.txt")
+    assert [(n.path, n.parent_path) for n in again.nodes] == [
+        (n.path, n.parent_path) for n in plan.nodes
+    ]
+
+
+def test_text_plan_deep_nodes_fall_back_to_nearest_shallower_ancestor():
+    # Indent widths are irregular, so only relative depth matters: each node
+    # attaches to the nearest shallower ancestor, not to the previous node.
+    text = """Limit  (cost=0.43..15.20 rows=20 width=64)
+  ->  Nested Loop  (cost=0.43..15.20 rows=20 width=64)
+     ->  Index Scan on alpha  (cost=0.43..14.90 rows=20 width=64)
+       ->  Seq Scan on alpha2  (cost=0.43..14.90 rows=20 width=64)
+   ->  Seq Scan on beta  (cost=0.43..15.20 rows=20 width=64)
+"""
+    plan = parse_text_plan(text, "irregular.txt")
+    assert [(n.path, n.depth, n.parent_path) for n in plan.nodes] == [
+        ("0", 0, ""),
+        ("0.0", 1, "0"),
+        ("0.0.0", 2, "0.0"),
+        ("0.0.0.0", 3, "0.0.0"),
+        ("0.0.1", 2, "0.0"),
+    ]
+    assert plan.nodes[4].table_name == "beta"
+
+
+
 def test_invalid_plans_are_reported_not_raised():
     broken = parse_json_plan('{"query_block": ', "broken.json")
     assert broken.error and "invalid JSON" in broken.error

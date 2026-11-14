@@ -147,8 +147,16 @@ def parse_text_plan(text: str, display_path: str) -> PlanDocument:
     metadata_match = FINGERPRINT_META_RE.search(text)
     fingerprint = metadata_match.group(1) if metadata_match else ""
     nodes: list[PlanNode] = []
-    stack: list[tuple[int, PlanNode]] = []
-    child_counts: dict[str, int] = {}
+    # Each stack frame is (indent, node, next_child_index).  The child counter
+    # belongs to the frame instead of a global path -> count map: popping back
+    # to an ancestor lets that ancestor resume numbering its own remaining
+    # children, while a fresh root starts a new subtree with its own prefix.
+    # A global map keyed by path leaks consumed indices between subtrees that
+    # reuse a path (for example comment-separated sections that each begin at
+    # the outermost indent), which shifts sibling indices and makes deeper
+    # nodes appear under the previous sibling's prefix.
+    stack: list[tuple[int, PlanNode, int]] = []
+    root_index = 0
     last_node: PlanNode | None = None
     for raw_line in text.splitlines():
         if raw_line.lstrip().startswith("--"):
@@ -162,17 +170,20 @@ def parse_text_plan(text: str, display_path: str) -> PlanDocument:
             indent = len(node_match.group("indent"))
             while stack and indent <= stack[-1][0]:
                 stack.pop()
-            parent = stack[-1][1] if stack else None
-            if parent is None:
-                path = "0"
+            if not stack:
+                # Independent top-level subtree: give it its own prefix so
+                # repeated roots never collide on path "0", which is also the
+                # persistence key for plan nodes.
+                path = str(root_index)
+                root_index += 1
                 depth = 0
                 parent_path = ""
                 in_nested = False
                 nested_position = -1
             else:
+                parent_indent, parent, child_index = stack[-1]
+                stack[-1] = (parent_indent, parent, child_index + 1)
                 parent_path = parent.path
-                child_index = child_counts.get(parent.path, 0)
-                child_counts[parent.path] = child_index + 1
                 path = f"{parent.path}.{child_index}"
                 depth = parent.depth + 1
                 in_nested = parent.in_nested_loop or "NESTED LOOP" in parent.operation.upper()
@@ -184,7 +195,7 @@ def parse_text_plan(text: str, display_path: str) -> PlanDocument:
                 int(node_match.group("rows")), in_nested, nested_position,
             )
             nodes.append(node)
-            stack.append((indent, node))
+            stack.append((indent, node, 0))
             last_node = node
             continue
         lower = stripped.lower()
