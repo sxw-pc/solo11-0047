@@ -1,0 +1,40 @@
+# Ordered declarative normalization rules. Add regex_sub rules here without
+# changing Python code. Every enabled rule id is reported with the batch.
+version: 1
+rules:
+  - id: FP-COMMENTS
+    type: strip_comments
+    enabled: true
+    description: Remove line comments, hash comments and block comments.
+  - id: FP-STRINGS
+    type: replace_string_literals
+    enabled: true
+    description: Replace single-quoted string literals with a placeholder.
+  - id: FP-NUMBERS
+    type: replace_numeric_literals
+    enabled: true
+    description: Replace integer and decimal literals outside identifiers.
+  - id: FP-IN-LIST
+    type: collapse_in_list
+    enabled: true
+    description: Collapse IN (?, ?, ...) to IN (?).
+  - id: FP-LIMIT
+    type: normalize_limit
+    enabled: true
+    description: Normalize LIMIT/OFFSET literal shapes.
+  - id: FP-WHITESPACE
+    type: collapse_whitespace
+    enabled: true
+    description: Collapse whitespace and normalize punctuation spacing.
+  - id: FP-KEYWORDS
+    type: uppercase_keywords
+    enabled: true
+    description: Uppercase SQL keywords and common built-in functions.
+  # Example extension point: disable this rule to preserve schema qualifiers.
+  - id: FP-SCHEMA-QUALIFIER
+    type: regex_sub
+    pattern: '\b(?:public|shopdemo)\.'
+    replacement: ''
+    flags: i
+    enabled: false
+    description: Optionally remove synthetic schema qualifiers.

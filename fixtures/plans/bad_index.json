@@ -1,0 +1,23 @@
+{
+  "format": "mysql_json_explain",
+  "fingerprint": "c34301cef6431f5f",
+  "query_block": {
+    "select_id": 1,
+    "cost_info": {
+      "query_cost": "88000.00"
+    },
+    "table": {
+      "table_name": "customers",
+      "access_type": "ref",
+      "key": "idx_customers_region",
+      "rows_examined_per_scan": 120000,
+      "rows_produced_per_join": 60000,
+      "filtered": "50.00",
+      "attached_condition": "((lower(customers.region) = 'north') and (customers.id = '42'))",
+      "possible_keys": [
+        "idx_customers_region",
+        "PRIMARY"
+      ]
+    }
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "format": "mysql_json_explain",
+  "fingerprint": "b6b972a308926333",
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "orders",
+      "access_type": "range",
+      "key": "idx_orders_customer",
+      "rows_examined_per_scan": 120,
+      "rows_produced_per_join": 60,
+      "filtered": "50.00",
+      "attached_condition": "(orders.customer_id = 42)"
+    }
+  }
+}

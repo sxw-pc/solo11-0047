@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>慢查解剖台 · {{ batch_id }}</title>
+<style>{{ css|safe }}</style>
+</head>
+<body>
+<header>
+  <p class="eyebrow">SLOWQUERY AUTOPSY · OFFLINE REPORT</p>
+  <h1>批次审计报告</h1>
+  <p class="muted">批次 <code>{{ batch_id }}</code> · 配置 <code>{{ config_hash[:16] }}</code> · 输入 <code>{{ input_hash[:16] }}</code></p>
+</header>
+<main>
+  <section>
+    <h2>概览</h2>
+    <div class="metrics">
+      <div class="metric"><strong>{{ summary.counts.queries }}</strong><span>慢查记录</span></div>
+      <div class="metric"><strong>{{ summary.counts.analyzed_queries }}</strong><span>参与聚类</span></div>
+      <div class="metric"><strong>{{ summary.counts.clusters }}</strong><span>指纹簇</span></div>
+      <div class="metric"><strong>{{ summary.counts.findings }}</strong><span>诊断发现</span></div>
+      <div class="metric"><strong>{{ summary.counts.high_findings }}</strong><span>高危及以上</span></div>
+      <div class="metric"><strong>{{ summary.counts.unparsed_lines }}</strong><span>未解析行</span></div>
+    </div>
+    <p class="muted">总耗时 {{ "%.3f"|format(summary.durations.all_queries_total_ms) }} ms · 分析总耗时 {{ "%.3f"|format(summary.durations.analyzed_total_ms) }} ms · 分位数 nearest-rank</p>
+  </section>
+
+  <section>
+    <h2>指纹簇</h2>
+    <table>
+      <thead><tr><th>簇</th><th>次数</th><th>总耗时 ms</th><th>P95 ms</th><th>放大倍数</th><th>占比</th><th>样本 SQL</th></tr></thead>
+      <tbody>
+      {% for cluster in clusters %}
+        <tr>
+          <td><a href="cluster-{{ cluster.fingerprint }}.html"><code>{{ cluster.fingerprint }}</code></a></td>
+          <td>{{ cluster.query_count }}</td>
+          <td>{{ "%.3f"|format(cluster.total_duration_ms) }}</td>
+          <td>{{ "%.3f"|format(cluster.p95_duration_ms) }}</td>
+          <td>{{ "%.2f"|format(cluster.amplification) }}x</td>
+          <td>{{ "%.2f"|format(cluster.duration_share * 100) }}%</td>
+          <td><code>{{ cluster.sample_sql[:120] }}</code></td>
+        </tr>
+      {% else %}
+        <tr><td colspan="7">无聚类结果。</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>规则触发</h2>
+    <table>
+      <thead><tr><th>级别</th><th>finding_id</th><th>规则</th><th>类别</th><th>簇 / 计划</th><th>说明</th></tr></thead>
+      <tbody>
+      {% for finding in findings %}
+        <tr>
+          <td><span class="sev sev-{{ finding.severity }}">{{ finding.severity }}</span></td>
+          <td><code>{{ finding.finding_id }}</code></td>
+          <td><code>{{ finding.rule_id }}</code></td>
+          <td>{{ finding.category }}</td>
+          <td>{% if finding.cluster_id %}<a href="cluster-{{ finding.cluster_id }}.html"><code>{{ finding.cluster_id }}</code></a>{% else %}{{ finding.plan_file }}{% endif %}</td>
+          <td>{{ finding.description }}</td>
+        </tr>
+      {% else %}
+        <tr><td colspan="6">未触发规则。</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>未解析日志与未关联计划</h2>
+    <p>未解析行：{{ summary.counts.unparsed_lines }}；未关联计划：{{ summary.counts.unassociated_plans }}。</p>
+    {% if unparsed %}
+    <table>
+      <thead><tr><th>文件</th><th>行号</th><th>原因</th><th>片段</th></tr></thead>
+      <tbody>
+      {% for item in unparsed %}
+        <tr><td>{{ item.file }}</td><td>{{ item.line_no }}</td><td>{{ item.reason }}</td><td><code>{{ item.text[:160] }}</code></td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+    {% if summary.unassociated_plans %}
+    <ul>
+    {% for plan in summary.unassociated_plans %}
+      <li><code>{{ plan.source_file }}</code> — {{ plan.reason }}</li>
+    {% endfor %}
+    </ul>
+    {% else %}<p class="muted">所有计划均已关联。</p>{% endif %}
+  </section>
+
+  <section>
+    <h2>排除的元数据语句</h2>
+    <p>前缀：{{ summary.excluded_prefixes|join(", ") or "无" }}；共 {{ summary.excluded_statements|length }} 条。</p>
+    <ul>
+    {% for item in summary.excluded_statements %}
+      <li><code>{{ item.source_file }}:{{ item.line_no }}</code> — {{ item.sql }}</li>
+    {% else %}
+      <li class="muted">无。</li>
+    {% endfor %}
+    </ul>
+  </section>
+</main>
+<footer>仅静态分析本地导出文件 · 不连接数据库 · 不执行 SQL · 不发起网络请求</footer>
+</body>
+</html>

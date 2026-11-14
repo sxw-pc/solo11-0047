@@ -1,0 +1,13 @@
+this synthetic line is intentionally outside any slow-log block
+# Time: 2026-01-10T13:00:00Z
+# User@Host: svc_app[svc_app] @ node-f [synthetic]  Id: 301
+# Schema: shopdemo
+# Query_time: 0.900000  Lock_time: 0.010000 Rows_sent: 1  Rows_examined: 100
+SET timestamp=1768039200;
+SELECT id, name FROM products WHERE id = 7;
+
+# Time: 2026-01-10T13:01:00Z
+# User@Host: svc_app[svc_app] @ node-f [synthetic]  Id: 302
+# Query_time: broken
+SELECT missing_metadata FROM ghost_table;
+

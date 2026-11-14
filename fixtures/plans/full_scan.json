@@ -1,0 +1,24 @@
+{
+  "format": "mysql_json_explain",
+  "fingerprint": "b6b972a308926333",
+  "query_block": {
+    "select_id": 1,
+    "cost_info": {
+      "query_cost": "125000.00"
+    },
+    "table": {
+      "table_name": "orders",
+      "access_type": "ALL",
+      "key": null,
+      "rows_examined_per_scan": 500000,
+      "rows_produced_per_join": 250000,
+      "filtered": "50.00",
+      "attached_condition": "(orders.status = 'PAID')",
+      "possible_keys": [
+        "idx_orders_customer",
+        "idx_orders_status"
+      ],
+      "using_filesort": true
+    }
+  }
+}

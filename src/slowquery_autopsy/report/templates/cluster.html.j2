@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>簇 {{ cluster.fingerprint }} · 慢查解剖台</title>
+<style>{{ css|safe }}</style>
+</head>
+<body>
+<header>
+  <p class="eyebrow"><a href="index.html">← 返回批次索引</a></p>
+  <h1>指纹簇 <code>{{ cluster.fingerprint }}</code></h1>
+  <p class="muted">出现 {{ cluster.query_count }} 次 · 总耗时 {{ "%.3f"|format(cluster.total_duration_ms) }} ms · 扫描放大 {{ "%.2f"|format(cluster.amplification) }}x</p>
+</header>
+<main>
+  <section>
+    <h2>耗时统计</h2>
+    <div class="metrics">
+      <div class="metric"><strong>{{ "%.3f"|format(cluster.avg_duration_ms) }}</strong><span>平均 ms</span></div>
+      <div class="metric"><strong>{{ "%.3f"|format(cluster.p50_duration_ms) }}</strong><span>P50 ms</span></div>
+      <div class="metric"><strong>{{ "%.3f"|format(cluster.p95_duration_ms) }}</strong><span>P95 ms</span></div>
+      <div class="metric"><strong>{{ "%.3f"|format(cluster.min_duration_ms) }}</strong><span>最小 ms</span></div>
+      <div class="metric"><strong>{{ "%.3f"|format(cluster.max_duration_ms) }}</strong><span>最大 ms</span></div>
+      <div class="metric"><strong>{{ "%.2f"|format(cluster.lock_ratio * 100) }}%</strong><span>锁等待占比</span></div>
+      <div class="metric"><strong>{{ cluster.total_rows_examined }}</strong><span>扫描行</span></div>
+      <div class="metric"><strong>{{ cluster.total_rows_sent }}</strong><span>返回行</span></div>
+    </div>
+  </section>
+  <section>
+    <h2>样本 SQL</h2>
+    <pre>{{ cluster.sample_sql }}</pre>
+    <h3>归一化语句</h3>
+    <pre>{{ cluster.normalized_sql }}</pre>
+  </section>
+  <section>
+    <h2>关联发现</h2>
+    <table>
+      <thead><tr><th>级别</th><th>规则</th><th>finding_id</th><th>说明</th></tr></thead>
+      <tbody>
+      {% for finding in findings %}
+        <tr><td><span class="sev sev-{{ finding.severity }}">{{ finding.severity }}</span></td>
+        <td><code>{{ finding.rule_id }}</code></td><td><code>{{ finding.finding_id }}</code></td><td>{{ finding.description }}</td></tr>
+      {% else %}
+        <tr><td colspan="4">该簇无关联发现。</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </section>
+  <section>
+    <h2>单体慢查</h2>
+    <table>
+      <thead><tr><th>query_id</th><th>来源</th><th>耗时 ms</th><th>扫描/返回</th><th>时间</th></tr></thead>
+      <tbody>
+      {% for query in queries %}
+        <tr>
+          <td><a href="query-{{ query.query_id }}.html"><code>{{ query.query_id }}</code></a></td>
+          <td>{{ query.source_file }}:{{ query.line_no }}</td>
+          <td>{{ "%.3f"|format(query.duration_ms) }}</td>
+          <td>{{ query.rows_examined }} / {{ query.rows_sent }}</td>
+          <td>{{ query.timestamp }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </section>
+</main>
+<footer>仅静态分析本地导出文件 · 不连接数据库 · 不执行 SQL · 不发起网络请求</footer>
+</body>
+</html>

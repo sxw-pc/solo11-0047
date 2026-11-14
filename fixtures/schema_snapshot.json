@@ -1,0 +1,105 @@
+{
+  "database": "shopdemo",
+  "tables": {
+    "orders": {
+      "row_count": 500000,
+      "columns": {
+        "id": "bigint",
+        "customer_id": "bigint",
+        "status": "varchar(16)",
+        "created_at": "datetime",
+        "total": "decimal(12,2)"
+      },
+      "indexes": [
+        {
+          "name": "PRIMARY",
+          "columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "idx_orders_customer",
+          "columns": [
+            "customer_id"
+          ]
+        },
+        {
+          "name": "idx_orders_status",
+          "columns": [
+            "status"
+          ]
+        },
+        {
+          "name": "idx_orders_created",
+          "columns": [
+            "created_at"
+          ]
+        }
+      ]
+    },
+    "customers": {
+      "row_count": 50000,
+      "columns": {
+        "id": "bigint",
+        "name": "varchar(80)",
+        "region": "varchar(32)",
+        "status": "varchar(16)",
+        "email": "varchar(120)",
+        "created_at": "datetime"
+      },
+      "indexes": [
+        {
+          "name": "PRIMARY",
+          "columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "idx_customers_region",
+          "columns": [
+            "region"
+          ]
+        },
+        {
+          "name": "idx_customers_status",
+          "columns": [
+            "status"
+          ]
+        }
+      ]
+    },
+    "order_items": {
+      "row_count": 900000,
+      "columns": {
+        "id": "bigint",
+        "order_id": "bigint",
+        "product_id": "bigint",
+        "quantity": "int"
+      },
+      "indexes": [
+        {
+          "name": "PRIMARY",
+          "columns": [
+            "id"
+          ]
+        }
+      ]
+    },
+    "products": {
+      "row_count": 2000,
+      "columns": {
+        "id": "bigint",
+        "name": "varchar(120)",
+        "price": "decimal(10,2)"
+      },
+      "indexes": [
+        {
+          "name": "PRIMARY",
+          "columns": [
+            "id"
+          ]
+        }
+      ]
+    }
+  }
+}

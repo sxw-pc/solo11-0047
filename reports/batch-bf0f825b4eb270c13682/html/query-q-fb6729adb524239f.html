@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>q-fb6729adb524239f · 慢查解剖台</title>
+<style>:root { --bg:#f5f2ea; --panel:#fffdf7; --ink:#20241f; --muted:#6c7068;
+  --line:#d8d2c4; --accent:#245c4f; --warn:#8a4b1f; --high:#a02f2f; }
+* { box-sizing: border-box; }
+body { margin:0; background:var(--bg); color:var(--ink);
+  font:15px/1.55 "Segoe UI", "Microsoft YaHei", system-ui, sans-serif; }
+header, main, footer { max-width:1120px; margin:0 auto; padding:0 24px; }
+header { padding-top:36px; padding-bottom:18px; border-bottom:2px solid var(--ink); }
+footer { margin-top:36px; padding-top:16px; padding-bottom:32px;
+  border-top:1px solid var(--line); color:var(--muted); font-size:12px; }
+h1 { font-size:30px; line-height:1.2; margin:6px 0 10px; letter-spacing:-.02em; }
+h2 { margin:30px 0 12px; font-size:20px; border-left:4px solid var(--accent); padding-left:10px; }
+h3 { margin:20px 0 8px; font-size:16px; }
+a { color:var(--accent); text-decoration-thickness:1px; text-underline-offset:2px; }
+code { background:#ede8dc; border-radius:3px; padding:1px 4px; font-size:.9em; }
+pre { background:#1f2622; color:#f3efe4; padding:16px; overflow:auto;
+  border-radius:6px; font-size:13px; line-height:1.5; }
+table { width:100%; border-collapse:collapse; background:var(--panel);
+  border:1px solid var(--line); margin:10px 0; font-size:13px; }
+th, td { border-bottom:1px solid var(--line); padding:8px 10px; text-align:left; vertical-align:top; }
+th { background:#e9e3d5; font-weight:600; }
+tr:last-child td { border-bottom:0; }
+.eyebrow { color:var(--muted); text-transform:uppercase; letter-spacing:.12em;
+  font-size:11px; margin:0; }
+.muted { color:var(--muted); }
+.metrics { display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:10px; }
+.metric { background:var(--panel); border:1px solid var(--line); padding:14px; border-radius:5px; }
+.metric strong { display:block; font-size:24px; color:var(--accent); }
+.metric span { color:var(--muted); font-size:12px; }
+.sev { font-weight:700; text-transform:uppercase; font-size:11px; }
+.sev-critical, .sev-high { color:var(--high); }
+.sev-medium { color:var(--warn); }
+section { margin-bottom:8px; }</style>
+</head>
+<body>
+<header>
+  <p class="eyebrow">
+    <a href="index.html">← 批次索引</a>
+     · <a href="cluster-af4b9db7cdc9c045.html">簇 af4b9db7cdc9c045</a>
+  </p>
+  <h1>单体慢查 <code>q-fb6729adb524239f</code></h1>
+  <p class="muted">fixtures/logs/mysql_slow_02.log:87 · 2026-01-10T11:10:00Z · mysql_slow</p>
+</header>
+<main>
+  <section>
+    <h2>执行信息</h2>
+    <table>
+      <tbody>
+        <tr><th>耗时</th><td>4000.000 ms</td><th>锁等待</th><td>20.000 ms</td></tr>
+        <tr><th>扫描行</th><td>850000</td><th>返回行</th><td>50</td></tr>
+        <tr><th>用户</th><td>svc_app</td><th>客户端</th><td>node-c</td></tr>
+        <tr><th>数据库</th><td>shopdemo</td><th>指纹</th><td><code>af4b9db7cdc9c045</code></td></tr>
+        <tr><th>排除</th><td>否</td><th>排除原因</th><td>—</td></tr>
+      </tbody>
+    </table>
+  </section>
+  <section>
+    <h2>SQL</h2>
+    <pre>SELECT oi.order_id, SUM(oi.quantity) AS qty
+FROM order_items oi
+JOIN orders o ON o.id = oi.order_id
+WHERE o.created_at &gt;= &#39;2026-01-02&#39;
+GROUP BY oi.order_id
+ORDER BY qty DESC
+LIMIT 50;</pre>
+    <h3>归一化</h3>
+    <pre>SELECT oi.order_id,SUM(oi.quantity) AS qty FROM order_items oi JOIN orders o ON o.id = oi.order_id WHERE o.created_at &gt;= ? GROUP BY oi.order_id ORDER BY qty DESC LIMIT ?;</pre>
+  </section>
+  <section>
+    <h2>成本向量</h2>
+    <table>
+      <thead><tr><th>指标</th><th>值</th></tr></thead>
+      <tbody>
+      
+        <tr><td>duration_ms</td><td>4000.0</td></tr>
+      
+        <tr><td>rows_examined</td><td>850000</td></tr>
+      
+        <tr><td>rows_sent</td><td>50</td></tr>
+      
+        <tr><td>amplification</td><td>17000.0</td></tr>
+      
+        <tr><td>lock_ratio</td><td>0.005</td></tr>
+      
+        <tr><td>projected_ms_per_1k_calls</td><td>4000000.0</td></tr>
+      
+      </tbody>
+    </table>
+  </section>
+  <section>
+    <h2>关联发现</h2>
+    <table>
+      <thead><tr><th>级别</th><th>规则</th><th>说明</th></tr></thead>
+      <tbody>
+      
+        <tr><td><span class="sev sev-high">high</span></td><td><code>COST-AVG-001</code></td><td>簇 af4b9db7cdc9c045 平均耗时 4400.0 ms，超过阈值 1000 ms。</td></tr>
+      
+        <tr><td><span class="sev sev-high">high</span></td><td><code>PLAN-FULLSCAN-001</code></td><td>节点 0.1 对表 order_items（约 900000 行）使用 ALL 全表扫描。</td></tr>
+      
+        <tr><td><span class="sev sev-high">high</span></td><td><code>PLAN-NL-INNER-001</code></td><td>嵌套循环内层节点 0.1 对 order_items（约 900000 行）逐行扫描且未使用索引。</td></tr>
+      
+        <tr><td><span class="sev sev-medium">medium</span></td><td><code>COST-P95-001</code></td><td>簇 af4b9db7cdc9c045 的 P95 耗时为 4800.0 ms（nearest-rank 口径）。</td></tr>
+      
+      </tbody>
+    </table>
+  </section>
+  <section>
+    <h2>关联计划</h2>
+    
+      <h3>fixtures/plans/nested_loop.json <span class="muted">(json)</span></h3>
+      <table>
+        <thead><tr><th>路径</th><th>操作</th><th>表</th><th>访问</th><th>行数</th><th>索引</th><th>条件</th></tr></thead>
+        <tbody>
+        
+          <tr><td><code>0</code></td><td>NESTED_LOOP</td><td></td><td></td><td>0</td><td></td><td><code></code></td></tr>
+        
+          <tr><td><code>0.0</code></td><td>TABLE ACCESS</td><td>customers</td><td>ALL</td><td>50000</td><td></td><td><code>(customers.region = &#39;north&#39;)</code></td></tr>
+        
+          <tr><td><code>0.1</code></td><td>TABLE ACCESS</td><td>order_items</td><td>ALL</td><td>900000</td><td></td><td><code>(order_items.order_id = customers.id)</code></td></tr>
+        
+        </tbody>
+      </table>
+    
+  </section>
+</main>
+<footer>仅静态分析本地导出文件 · 不连接数据库 · 不执行 SQL · 不发起网络请求</footer>
+</body>
+</html>

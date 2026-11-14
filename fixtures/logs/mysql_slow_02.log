@@ -1,0 +1,112 @@
+# Time: 2026-01-10T11:00:00Z
+# User@Host: svc_app[svc_app] @ node-a [synthetic]  Id: 201
+# Schema: shopdemo
+# Query_time: 2.550000  Lock_time: 0.010000 Rows_sent: 20  Rows_examined: 220000
+SET timestamp=1768039200;
+SELECT *
+FROM orders
+WHERE customer_id = 44
+  AND status = 'PAID'
+ORDER BY created_at DESC
+LIMIT 20;
+
+# Time: 2026-01-10T11:01:00Z
+# User@Host: svc_app[svc_app] @ node-c [synthetic]  Id: 202
+# Schema: shopdemo
+# Query_time: 2.660000  Lock_time: 0.020000 Rows_sent: 20  Rows_examined: 205000
+SET timestamp=1768039200;
+SELECT *
+FROM orders
+WHERE customer_id = 12
+  AND status = 'NEW'
+ORDER BY created_at DESC
+LIMIT 20;
+
+# Time: 2026-01-10T11:02:00Z
+# User@Host: svc_app[svc_app] @ node-a [synthetic]  Id: 203
+# Schema: shopdemo
+# Query_time: 2.910000  Lock_time: 0.010000 Rows_sent: 20  Rows_examined: 250000
+SET timestamp=1768039200;
+SELECT *
+FROM orders
+WHERE customer_id = 81
+  AND status = 'PAID'
+ORDER BY created_at DESC
+LIMIT 20;
+
+# Time: 2026-01-10T11:03:00Z
+# User@Host: svc_app[svc_app] @ node-c [synthetic]  Id: 204
+# Schema: shopdemo
+# Query_time: 3.050000  Lock_time: 0.020000 Rows_sent: 20  Rows_examined: 260000
+SET timestamp=1768039200;
+SELECT *
+FROM orders
+WHERE customer_id = 33
+  AND status = 'CANCELLED'
+ORDER BY created_at DESC
+LIMIT 20;
+
+# Time: 2026-01-10T11:04:00Z
+# User@Host: svc_app[svc_app] @ node-a [synthetic]  Id: 205
+# Schema: shopdemo
+# Query_time: 3.200000  Lock_time: 0.010000 Rows_sent: 20  Rows_examined: 230000
+SET timestamp=1768039200;
+SELECT *
+FROM orders
+WHERE customer_id = 5
+  AND status = 'PAID'
+ORDER BY created_at DESC
+LIMIT 20;
+
+# Time: 2026-01-10T11:06:00Z
+# User@Host: svc_app[svc_app] @ node-b [synthetic]  Id: 206
+# Schema: shopdemo
+# Query_time: 2.050000  Lock_time: 0.800000 Rows_sent: 80  Rows_examined: 130000
+SET timestamp=1768039200;
+SELECT c.id, c.name, COUNT(o.id) AS order_count
+FROM customers c
+JOIN orders o ON o.customer_id = c.id
+WHERE lower(c.region) = 'east'
+GROUP BY c.id, c.name
+ORDER BY order_count DESC
+LIMIT 100;
+
+# Time: 2026-01-10T11:07:00Z
+# User@Host: svc_app[svc_app] @ node-c [synthetic]  Id: 207
+# Schema: shopdemo
+# Query_time: 2.400000  Lock_time: 1.000000 Rows_sent: 80  Rows_examined: 140000
+SET timestamp=1768039200;
+SELECT c.id, c.name, COUNT(o.id) AS order_count
+FROM customers c
+JOIN orders o ON o.customer_id = c.id
+WHERE lower(c.region) = 'west'
+GROUP BY c.id, c.name
+ORDER BY order_count DESC
+LIMIT 100;
+
+# Time: 2026-01-10T11:10:00Z
+# User@Host: svc_app[svc_app] @ node-c [synthetic]  Id: 208
+# Schema: shopdemo
+# Query_time: 4.000000  Lock_time: 0.020000 Rows_sent: 50  Rows_examined: 850000
+SET timestamp=1768039200;
+SELECT oi.order_id, SUM(oi.quantity) AS qty
+FROM order_items oi
+JOIN orders o ON o.id = oi.order_id
+WHERE o.created_at >= '2026-01-02'
+GROUP BY oi.order_id
+ORDER BY qty DESC
+LIMIT 50;
+
+# Time: 2026-01-10T11:11:00Z
+# User@Host: svc_app[svc_app] @ node-c [synthetic]  Id: 209
+# Schema: shopdemo
+# Query_time: 4.400000  Lock_time: 0.020000 Rows_sent: 50  Rows_examined: 920000
+SET timestamp=1768039200;
+SELECT oi.order_id, SUM(oi.quantity) AS qty
+FROM order_items oi
+JOIN orders o ON o.id = oi.order_id
+WHERE o.created_at >= '2026-01-03'
+GROUP BY oi.order_id
+ORDER BY qty DESC
+LIMIT 50;
+

@@ -1,0 +1,4 @@
+-- slowquery fingerprint: deadbeefdeadbeef
+Limit  (cost=0.43..15.20 rows=20 width=64)
+  ->  Index Scan using idx_orders_customer on orders o  (cost=0.43..14.90 rows=20 width=64)
+        Index Cond: (customer_id = 42)

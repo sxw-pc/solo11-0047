@@ -1,0 +1,63 @@
+# Time: 2026-01-10T10:00:00Z
+# User@Host: svc_app[svc_app] @ node-a [synthetic]  Id: 101
+# Schema: shopdemo
+# Query_time: 2.310000  Lock_time: 0.010000 Rows_sent: 20  Rows_examined: 200000
+SET timestamp=1768039200;
+SELECT *
+FROM orders
+WHERE customer_id = 42
+  AND status = 'PAID'
+ORDER BY created_at DESC
+LIMIT 20;
+
+# Time: 2026-01-10T10:01:00Z
+# User@Host: svc_app[svc_app] @ node-a [synthetic]  Id: 102
+# Schema: shopdemo
+# Query_time: 2.800000  Lock_time: 0.010000 Rows_sent: 20  Rows_examined: 240000
+SET timestamp=1768039200;
+SELECT *
+FROM orders
+WHERE customer_id = 99
+  AND status = 'SHIPPED'
+ORDER BY created_at DESC
+LIMIT 20;
+
+# Time: 2026-01-10T10:02:00Z
+# User@Host: svc_app[svc_app] @ node-b [synthetic]  Id: 103
+# Schema: shopdemo
+# Query_time: 2.420000  Lock_time: 0.010000 Rows_sent: 20  Rows_examined: 210000
+SET timestamp=1768039200;
+SELECT *
+FROM orders
+WHERE customer_id = 7
+  AND status = 'REFUNDED'
+ORDER BY created_at DESC
+LIMIT 20;
+
+# Time: 2026-01-10T10:03:00Z
+# User@Host: svc_app[svc_app] @ node-b [synthetic]  Id: 104
+# Schema: shopdemo
+# Query_time: 1.800000  Lock_time: 0.700000 Rows_sent: 80  Rows_examined: 120000
+SET timestamp=1768039200;
+SELECT c.id, c.name, COUNT(o.id) AS order_count
+FROM customers c
+JOIN orders o ON o.customer_id = c.id
+WHERE lower(c.region) = 'south'
+GROUP BY c.id, c.name
+ORDER BY order_count DESC
+LIMIT 100;
+
+# Time: 2026-01-10T10:04:00Z
+# User@Host: svc_app[svc_app] @ node-a [synthetic]  Id: 105
+# Schema: shopdemo
+# Query_time: 0.400000  Lock_time: 0.000000 Rows_sent: 0  Rows_examined: 0
+SET timestamp=1768039200;
+SET SESSION long_query_time = 0.2;
+
+# Time: 2026-01-10T10:05:00Z
+# User@Host: svc_app[svc_app] @ node-a [synthetic]  Id: 106
+# Schema: shopdemo
+# Query_time: 0.350000  Lock_time: 0.000000 Rows_sent: 12  Rows_examined: 2000
+SET timestamp=1768039200;
+SHOW INDEX FROM orders;
+

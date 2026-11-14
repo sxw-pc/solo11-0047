@@ -1,0 +1,105 @@
+# Slow Query Autopsy pipeline. All paths are resolved relative to paths.root.
+version: 1
+project:
+  name: slowquery-autopsy
+  description: Offline slow-query log and execution-plan audit.
+paths:
+  root: ..
+  ledger: data/ledger.sqlite3
+  reports: reports
+inputs:
+  - path: fixtures/logs/mysql_slow_01.log
+    format: mysql_slow
+    encoding: utf-8
+  - path: fixtures/logs/mysql_slow_02.log
+    format: mysql_slow
+    encoding: utf-8
+  - path: fixtures/logs/pg_log_01.log
+    format: postgres_csv
+    encoding: utf-8
+  - path: fixtures/logs/malformed_lines.log
+    format: mysql_slow
+    encoding: utf-8
+formats:
+  mysql_slow:
+    type: mysql_slow
+  postgres_csv:
+    type: postgres_csv
+    delimiter: ","
+    quotechar: '"'
+    header: false
+    fields:
+      timestamp: 0
+      user: 1
+      database: 2
+      duration_sec: 3
+      lock_sec: 4
+      rows_sent: 5
+      rows_examined: 6
+      client: 7
+      statement: 8
+fingerprint:
+  rules_file: configs/fingerprint_rules.yaml
+  excluded_statement_prefixes: [SET, SHOW, USE]
+  quantile: nearest_rank
+cost:
+  rules:
+    - id: COST-AMP-001
+      title: 扫描放大高风险
+      metric: amplification
+      operator: gt
+      threshold: 100
+      min_count: 10
+      severity: high
+      description: "簇 {cluster_id} 的扫描/返回放大倍数为 {actual}，超过阈值 {threshold}，出现 {query_count} 次。"
+      recommendation: 检查过滤字段选择性、索引覆盖与分页方式；扫描放大不等同于错误，需结合业务确认。
+    - id: COST-AVG-001
+      title: 平均耗时偏高
+      metric: avg_duration_ms
+      operator: gt
+      threshold: 1000
+      min_count: 1
+      severity: high
+      description: "簇 {cluster_id} 平均耗时 {actual} ms，超过阈值 {threshold} ms。"
+      recommendation: 结合执行计划定位主要耗时算子，先验证索引与数据分布假设。
+    - id: COST-P95-001
+      title: P95 耗时偏高
+      metric: p95_duration_ms
+      operator: gte
+      threshold: 2000
+      min_count: 1
+      severity: medium
+      description: "簇 {cluster_id} 的 P95 耗时为 {actual} ms（nearest-rank 口径）。"
+      recommendation: 检查长尾样本的绑定变量、数据倾斜与锁等待情况。
+    - id: COST-LOCK-001
+      title: 锁等待占比偏高
+      metric: lock_ratio
+      operator: gt
+      threshold: 0.30
+      min_count: 1
+      severity: medium
+      description: "簇 {cluster_id} 锁等待时间占执行时间比例 {actual}，超过阈值 {threshold}。"
+      recommendation: 检查事务边界、行锁竞争与批量更新提交粒度。
+plan:
+  schema_file: fixtures/schema_snapshot.json
+  rules_file: configs/plan_audit_rules.yaml
+  files:
+    - fixtures/plans/full_scan.json
+    - fixtures/plans/bad_index.json
+    - fixtures/plans/nested_loop.json
+    - fixtures/plans/ok_plan.json
+    - fixtures/plans/text_ok_plan.txt
+  links:
+    fixtures/plans/full_scan.json: b6b972a308926333
+    fixtures/plans/bad_index.json: c34301cef6431f5f
+    fixtures/plans/nested_loop.json: af4b9db7cdc9c045
+    fixtures/plans/ok_plan.json: b6b972a308926333
+risk:
+  overrides: {}
+  fail_on_severity: [critical]
+  diff_fail_on_new_high: false
+reports:
+  formats: [markdown, json, html]
+  top_clusters: 8
+  unparsed_preview: 10
+  excluded_preview: 10

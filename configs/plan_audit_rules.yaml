@@ -1,0 +1,41 @@
+# Static plan-audit rules. Rule ids are stable API: do not rename casually.
+version: 1
+rules:
+  - id: PLAN-FULLSCAN-001
+    type: full_scan_large_table
+    title: 大表全表扫描
+    severity: high
+    min_table_rows: 100000
+    description: "节点 {node_path} 对表 {table}（约 {table_rows} 行）使用 {access_type} 全表扫描。"
+    recommendation: 检查过滤条件与排序字段，评估补充组合索引；本工具不生成改写后的 SQL。
+    enabled: true
+  - id: PLAN-FUNC-001
+    type: function_wrapped_index
+    title: 索引列被函数包裹
+    severity: high
+    description: "节点 {node_path} 的条件 {expression} 包裹了已索引列 {table}.{column}，可能导致普通索引失效。"
+    recommendation: 核对表达式索引或改写条件；先在测试环境验证执行计划。
+    enabled: true
+  - id: PLAN-CAST-001
+    type: implicit_type_cast
+    title: 隐式类型转换风险
+    severity: high
+    description: "节点 {node_path} 将数值列 {table}.{column}（{column_type}）与字符串字面量 '{quoted_literal}' 比较。"
+    recommendation: 检查应用绑定参数类型，确保数值列使用数值类型参数。
+    enabled: true
+  - id: PLAN-NL-INNER-001
+    type: nested_loop_inner_missing_index
+    title: 嵌套循环内层缺索引
+    severity: high
+    min_inner_rows: 10000
+    description: "嵌套循环内层节点 {node_path} 对 {table}（约 {table_rows} 行）逐行扫描且未使用索引。"
+    recommendation: 检查连接键上是否有可用索引，并确认连接顺序与统计信息。
+    enabled: true
+  - id: PLAN-SORT-001
+    type: sort_temp_large
+    title: 大结果集排序/临时表
+    severity: medium
+    min_rows: 50000
+    description: "节点 {node_path} 在大结果集（{rows} 行）上执行文件排序或临时表操作。"
+    recommendation: 评估排序字段索引与 LIMIT 下推，避免在超大中间结果上排序。
+    enabled: true

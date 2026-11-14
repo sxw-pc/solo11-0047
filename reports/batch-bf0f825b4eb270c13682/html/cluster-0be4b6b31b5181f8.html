@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>簇 0be4b6b31b5181f8 · 慢查解剖台</title>
+<style>:root { --bg:#f5f2ea; --panel:#fffdf7; --ink:#20241f; --muted:#6c7068;
+  --line:#d8d2c4; --accent:#245c4f; --warn:#8a4b1f; --high:#a02f2f; }
+* { box-sizing: border-box; }
+body { margin:0; background:var(--bg); color:var(--ink);
+  font:15px/1.55 "Segoe UI", "Microsoft YaHei", system-ui, sans-serif; }
+header, main, footer { max-width:1120px; margin:0 auto; padding:0 24px; }
+header { padding-top:36px; padding-bottom:18px; border-bottom:2px solid var(--ink); }
+footer { margin-top:36px; padding-top:16px; padding-bottom:32px;
+  border-top:1px solid var(--line); color:var(--muted); font-size:12px; }
+h1 { font-size:30px; line-height:1.2; margin:6px 0 10px; letter-spacing:-.02em; }
+h2 { margin:30px 0 12px; font-size:20px; border-left:4px solid var(--accent); padding-left:10px; }
+h3 { margin:20px 0 8px; font-size:16px; }
+a { color:var(--accent); text-decoration-thickness:1px; text-underline-offset:2px; }
+code { background:#ede8dc; border-radius:3px; padding:1px 4px; font-size:.9em; }
+pre { background:#1f2622; color:#f3efe4; padding:16px; overflow:auto;
+  border-radius:6px; font-size:13px; line-height:1.5; }
+table { width:100%; border-collapse:collapse; background:var(--panel);
+  border:1px solid var(--line); margin:10px 0; font-size:13px; }
+th, td { border-bottom:1px solid var(--line); padding:8px 10px; text-align:left; vertical-align:top; }
+th { background:#e9e3d5; font-weight:600; }
+tr:last-child td { border-bottom:0; }
+.eyebrow { color:var(--muted); text-transform:uppercase; letter-spacing:.12em;
+  font-size:11px; margin:0; }
+.muted { color:var(--muted); }
+.metrics { display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:10px; }
+.metric { background:var(--panel); border:1px solid var(--line); padding:14px; border-radius:5px; }
+.metric strong { display:block; font-size:24px; color:var(--accent); }
+.metric span { color:var(--muted); font-size:12px; }
+.sev { font-weight:700; text-transform:uppercase; font-size:11px; }
+.sev-critical, .sev-high { color:var(--high); }
+.sev-medium { color:var(--warn); }
+section { margin-bottom:8px; }</style>
+</head>
+<body>
+<header>
+  <p class="eyebrow"><a href="index.html">← 返回批次索引</a></p>
+  <h1>指纹簇 <code>0be4b6b31b5181f8</code></h1>
+  <p class="muted">出现 1 次 · 总耗时 900.000 ms · 扫描放大 100.00x</p>
+</header>
+<main>
+  <section>
+    <h2>耗时统计</h2>
+    <div class="metrics">
+      <div class="metric"><strong>900.000</strong><span>平均 ms</span></div>
+      <div class="metric"><strong>900.000</strong><span>P50 ms</span></div>
+      <div class="metric"><strong>900.000</strong><span>P95 ms</span></div>
+      <div class="metric"><strong>900.000</strong><span>最小 ms</span></div>
+      <div class="metric"><strong>900.000</strong><span>最大 ms</span></div>
+      <div class="metric"><strong>1.11%</strong><span>锁等待占比</span></div>
+      <div class="metric"><strong>100</strong><span>扫描行</span></div>
+      <div class="metric"><strong>1</strong><span>返回行</span></div>
+    </div>
+  </section>
+  <section>
+    <h2>样本 SQL</h2>
+    <pre>SELECT id, name FROM products WHERE id = 7;</pre>
+    <h3>归一化语句</h3>
+    <pre>SELECT id,name FROM products WHERE id = ?;</pre>
+  </section>
+  <section>
+    <h2>关联发现</h2>
+    <table>
+      <thead><tr><th>级别</th><th>规则</th><th>finding_id</th><th>说明</th></tr></thead>
+      <tbody>
+      
+        <tr><td colspan="4">该簇无关联发现。</td></tr>
+      
+      </tbody>
+    </table>
+  </section>
+  <section>
+    <h2>单体慢查</h2>
+    <table>
+      <thead><tr><th>query_id</th><th>来源</th><th>耗时 ms</th><th>扫描/返回</th><th>时间</th></tr></thead>
+      <tbody>
+      
+        <tr>
+          <td><a href="query-q-7ff29988fc4fa454.html"><code>q-7ff29988fc4fa454</code></a></td>
+          <td>fixtures/logs/malformed_lines.log:2</td>
+          <td>900.000</td>
+          <td>100 / 1</td>
+          <td>2026-01-10T13:00:00Z</td>
+        </tr>
+      
+      </tbody>
+    </table>
+  </section>
+</main>
+<footer>仅静态分析本地导出文件 · 不连接数据库 · 不执行 SQL · 不发起网络请求</footer>
+</body>
+</html>

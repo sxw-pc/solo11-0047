@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>q-c674fe3a9027bd6e · 慢查解剖台</title>
+<style>:root { --bg:#f5f2ea; --panel:#fffdf7; --ink:#20241f; --muted:#6c7068;
+  --line:#d8d2c4; --accent:#245c4f; --warn:#8a4b1f; --high:#a02f2f; }
+* { box-sizing: border-box; }
+body { margin:0; background:var(--bg); color:var(--ink);
+  font:15px/1.55 "Segoe UI", "Microsoft YaHei", system-ui, sans-serif; }
+header, main, footer { max-width:1120px; margin:0 auto; padding:0 24px; }
+header { padding-top:36px; padding-bottom:18px; border-bottom:2px solid var(--ink); }
+footer { margin-top:36px; padding-top:16px; padding-bottom:32px;
+  border-top:1px solid var(--line); color:var(--muted); font-size:12px; }
+h1 { font-size:30px; line-height:1.2; margin:6px 0 10px; letter-spacing:-.02em; }
+h2 { margin:30px 0 12px; font-size:20px; border-left:4px solid var(--accent); padding-left:10px; }
+h3 { margin:20px 0 8px; font-size:16px; }
+a { color:var(--accent); text-decoration-thickness:1px; text-underline-offset:2px; }
+code { background:#ede8dc; border-radius:3px; padding:1px 4px; font-size:.9em; }
+pre { background:#1f2622; color:#f3efe4; padding:16px; overflow:auto;
+  border-radius:6px; font-size:13px; line-height:1.5; }
+table { width:100%; border-collapse:collapse; background:var(--panel);
+  border:1px solid var(--line); margin:10px 0; font-size:13px; }
+th, td { border-bottom:1px solid var(--line); padding:8px 10px; text-align:left; vertical-align:top; }
+th { background:#e9e3d5; font-weight:600; }
+tr:last-child td { border-bottom:0; }
+.eyebrow { color:var(--muted); text-transform:uppercase; letter-spacing:.12em;
+  font-size:11px; margin:0; }
+.muted { color:var(--muted); }
+.metrics { display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:10px; }
+.metric { background:var(--panel); border:1px solid var(--line); padding:14px; border-radius:5px; }
+.metric strong { display:block; font-size:24px; color:var(--accent); }
+.metric span { color:var(--muted); font-size:12px; }
+.sev { font-weight:700; text-transform:uppercase; font-size:11px; }
+.sev-critical, .sev-high { color:var(--high); }
+.sev-medium { color:var(--warn); }
+section { margin-bottom:8px; }</style>
+</head>
+<body>
+<header>
+  <p class="eyebrow">
+    <a href="index.html">← 批次索引</a>
+     · <a href="cluster-b6b972a308926333.html">簇 b6b972a308926333</a>
+  </p>
+  <h1>单体慢查 <code>q-c674fe3a9027bd6e</code></h1>
+  <p class="muted">fixtures/logs/mysql_slow_01.log:13 · 2026-01-10T10:01:00Z · mysql_slow</p>
+</header>
+<main>
+  <section>
+    <h2>执行信息</h2>
+    <table>
+      <tbody>
+        <tr><th>耗时</th><td>2800.000 ms</td><th>锁等待</th><td>10.000 ms</td></tr>
+        <tr><th>扫描行</th><td>240000</td><th>返回行</th><td>20</td></tr>
+        <tr><th>用户</th><td>svc_app</td><th>客户端</th><td>node-a</td></tr>
+        <tr><th>数据库</th><td>shopdemo</td><th>指纹</th><td><code>b6b972a308926333</code></td></tr>
+        <tr><th>排除</th><td>否</td><th>排除原因</th><td>—</td></tr>
+      </tbody>
+    </table>
+  </section>
+  <section>
+    <h2>SQL</h2>
+    <pre>SELECT *
+FROM orders
+WHERE customer_id = 99
+  AND status = &#39;SHIPPED&#39;
+ORDER BY created_at DESC
+LIMIT 20;</pre>
+    <h3>归一化</h3>
+    <pre>SELECT * FROM orders WHERE customer_id = ? AND status = ? ORDER BY created_at DESC LIMIT ?;</pre>
+  </section>
+  <section>
+    <h2>成本向量</h2>
+    <table>
+      <thead><tr><th>指标</th><th>值</th></tr></thead>
+      <tbody>
+      
+        <tr><td>duration_ms</td><td>2800.0</td></tr>
+      
+        <tr><td>rows_examined</td><td>240000</td></tr>
+      
+        <tr><td>rows_sent</td><td>20</td></tr>
+      
+        <tr><td>amplification</td><td>12000.0</td></tr>
+      
+        <tr><td>lock_ratio</td><td>0.003571</td></tr>
+      
+        <tr><td>projected_ms_per_1k_calls</td><td>2800000.0</td></tr>
+      
+      </tbody>
+    </table>
+  </section>
+  <section>
+    <h2>关联发现</h2>
+    <table>
+      <thead><tr><th>级别</th><th>规则</th><th>说明</th></tr></thead>
+      <tbody>
+      
+        <tr><td><span class="sev sev-high">high</span></td><td><code>COST-AMP-001</code></td><td>簇 b6b972a308926333 的扫描/返回放大倍数为 11275.0，超过阈值 100，出现 10 次。</td></tr>
+      
+        <tr><td><span class="sev sev-high">high</span></td><td><code>COST-AVG-001</code></td><td>簇 b6b972a308926333 平均耗时 2705.0 ms，超过阈值 1000 ms。</td></tr>
+      
+        <tr><td><span class="sev sev-high">high</span></td><td><code>PLAN-FULLSCAN-001</code></td><td>节点 0 对表 orders（约 500000 行）使用 ALL 全表扫描。</td></tr>
+      
+        <tr><td><span class="sev sev-medium">medium</span></td><td><code>COST-P95-001</code></td><td>簇 b6b972a308926333 的 P95 耗时为 3200.0 ms（nearest-rank 口径）。</td></tr>
+      
+        <tr><td><span class="sev sev-medium">medium</span></td><td><code>PLAN-SORT-001</code></td><td>节点 0 在大结果集（500000 行）上执行文件排序或临时表操作。</td></tr>
+      
+      </tbody>
+    </table>
+  </section>
+  <section>
+    <h2>关联计划</h2>
+    
+      <h3>fixtures/plans/full_scan.json <span class="muted">(json)</span></h3>
+      <table>
+        <thead><tr><th>路径</th><th>操作</th><th>表</th><th>访问</th><th>行数</th><th>索引</th><th>条件</th></tr></thead>
+        <tbody>
+        
+          <tr><td><code>0</code></td><td>TABLE ACCESS</td><td>orders</td><td>ALL</td><td>500000</td><td></td><td><code>(orders.status = &#39;PAID&#39;)</code></td></tr>
+        
+        </tbody>
+      </table>
+    
+      <h3>fixtures/plans/ok_plan.json <span class="muted">(json)</span></h3>
+      <table>
+        <thead><tr><th>路径</th><th>操作</th><th>表</th><th>访问</th><th>行数</th><th>索引</th><th>条件</th></tr></thead>
+        <tbody>
+        
+          <tr><td><code>0</code></td><td>TABLE ACCESS</td><td>orders</td><td>range</td><td>120</td><td>idx_orders_customer</td><td><code>(orders.customer_id = 42)</code></td></tr>
+        
+        </tbody>
+      </table>
+    
+  </section>
+</main>
+<footer>仅静态分析本地导出文件 · 不连接数据库 · 不执行 SQL · 不发起网络请求</footer>
+</body>
+</html>
